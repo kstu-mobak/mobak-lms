@@ -1,0 +1,920 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>МОБАК — курс</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js"></script>
+<style>
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --panel2: #f0f2f5; --text: #1d2330; --muted: #5d6676; --line: #dde1e8;
+  --accent: #2f5bd3; --accent-soft: #e6ecfb; --ok: #1f8a4c; --ok-soft: #e3f4ea; --warn: #a86400; --warn-soft: #fbf0dc;
+  --bad: #c2362f; --bad-soft: #fbe7e5; --code-bg: #f3f4f7; --shadow: 0 1px 2px rgba(20,30,50,.06), 0 2px 8px rgba(20,30,50,.05);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #14171c; --panel: #1c2027; --panel2: #232831; --text: #e4e7ec; --muted: #9aa3b2; --line: #313844;
+    --accent: #7c9cf5; --accent-soft: #232f4d; --ok: #5cc98a; --ok-soft: #1c3227; --warn: #e3a64a; --warn-soft: #3a2e1a;
+    --bad: #f07a72; --bad-soft: #3d2221; --code-bg: #171a20; --shadow: none;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #14171c; --panel: #1c2027; --panel2: #232831; --text: #e4e7ec; --muted: #9aa3b2; --line: #313844;
+  --accent: #7c9cf5; --accent-soft: #232f4d; --ok: #5cc98a; --ok-soft: #1c3227; --warn: #e3a64a; --warn-soft: #3a2e1a;
+  --bad: #f07a72; --bad-soft: #3d2221; --code-bg: #171a20; --shadow: none;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--text); font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+a { color: var(--accent); }
+code, pre, .mono { font-family: ui-monospace, "Cascadia Mono", Consolas, "Liberation Mono", monospace; font-size: .92em; }
+code { background: var(--code-bg); padding: .08em .3em; border-radius: 4px; }
+pre { background: var(--code-bg); padding: 10px 12px; border-radius: 8px; overflow-x: auto; border: 1px solid var(--line); }
+pre code { background: none; padding: 0; }
+table { border-collapse: collapse; margin: 8px 0; display: block; overflow-x: auto; }
+th, td { border: 1px solid var(--line); padding: 4px 10px; text-align: left; vertical-align: top; }
+th { background: var(--panel2); }
+h1, h2, h3 { line-height: 1.25; }
+button { font: inherit; cursor: pointer; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--text); padding: 7px 14px; }
+button:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+:root[data-theme="dark"] button.primary { color: #10131a; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) button.primary { color: #10131a; } }
+button:disabled { opacity: .55; cursor: default; }
+button.link { border: none; background: none; color: var(--accent); padding: 4px 6px; }
+input[type=text], input[type=number], textarea, select { font: inherit; color: var(--text); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; }
+input:focus, textarea:focus, select:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* каркас */
+.top { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: var(--panel); border-bottom: 1px solid var(--line); }
+.top .brand { font-weight: 700; white-space: nowrap; cursor: pointer; }
+.top .brand small { font-weight: 400; color: var(--muted); }
+.top .grow { flex: 1; }
+.top .score { white-space: nowrap; color: var(--muted); font-size: 14px; }
+.top .score b { color: var(--text); }
+.menu-btn { display: none; }
+.layout { display: grid; grid-template-columns: 300px minmax(0, 1fr); min-height: calc(100vh - 57px); }
+nav.side { border-right: 1px solid var(--line); background: var(--panel); padding: 12px 8px 40px; overflow-y: auto; position: sticky; top: 57px; height: calc(100vh - 57px); }
+.side .wk { margin: 4px 0 10px; }
+.side .wk-h { font-weight: 650; font-size: 14px; padding: 6px 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .02em; display: flex; justify-content: space-between; gap: 8px; }
+.side .wk-h span:last-child { font-weight: 500; text-transform: none; }
+.side a.ls { display: flex; gap: 8px; align-items: flex-start; padding: 7px 10px; border-radius: 8px; color: var(--text); text-decoration: none; font-size: 14.5px; line-height: 1.35; }
+.side a.ls:hover { background: var(--panel2); }
+.side a.ls.cur { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.side a.ls .dot { flex: none; width: 10px; height: 10px; border-radius: 50%; margin-top: 5px; border: 2px solid var(--line); }
+.side a.ls .dot.part { border-color: var(--warn); background: var(--warn-soft); }
+.side a.ls .dot.full { border-color: var(--ok); background: var(--ok); }
+main { padding: 24px 32px 80px; max-width: 920px; width: 100%; }
+@media (max-width: 860px) {
+  .layout { grid-template-columns: 1fr; }
+  nav.side { position: fixed; left: 0; top: 57px; width: min(320px, 88vw); z-index: 30; transform: translateX(-105%); transition: transform .2s; box-shadow: var(--shadow); }
+  body.nav-open nav.side { transform: none; }
+  .menu-btn { display: inline-block; }
+  main { padding: 16px 16px 80px; }
+  .top .brand small, .top .hide-sm { display: none; }
+}
+
+/* главная */
+.hero { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 20px 22px; box-shadow: var(--shadow); }
+.hero h1 { margin: 0 0 6px; font-size: 24px; }
+.hero p { margin: 6px 0; color: var(--muted); }
+.weeks { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; margin-top: 18px; }
+.wcard { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 8px; }
+.wcard h3 { margin: 0; font-size: 16.5px; }
+.wcard .n { color: var(--muted); font-size: 13px; text-transform: uppercase; letter-spacing: .03em; }
+.wcard ul { margin: 0; padding-left: 18px; font-size: 14px; color: var(--muted); }
+.wcard .go { margin-top: auto; align-self: flex-start; }
+.bar { height: 8px; border-radius: 6px; background: var(--panel2); overflow: hidden; }
+.bar > i { display: block; height: 100%; background: var(--ok); border-radius: 6px; }
+.small { font-size: 14px; color: var(--muted); }
+
+/* урок */
+.crumbs { color: var(--muted); font-size: 14px; }
+.lesson-h { margin: 4px 0 6px; font-size: 26px; }
+.stepbar { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 18px; }
+.stepbar a { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 7px; border: 1px solid var(--line); background: var(--panel); text-decoration: none; color: var(--muted); font-size: 12.5px; }
+.stepbar a.task { border-width: 2px; }
+.stepbar a.part { border-color: var(--warn); background: var(--warn-soft); color: var(--warn); }
+.stepbar a.full { border-color: var(--ok); background: var(--ok-soft); color: var(--ok); }
+.step { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px 22px; margin: 0 0 16px; box-shadow: var(--shadow); scroll-margin-top: 70px; }
+.step-h { display: flex; justify-content: space-between; align-items: center; gap: 10px; color: var(--muted); font-size: 13px; margin-bottom: 4px; }
+.badge { font-size: 12.5px; padding: 2px 9px; border-radius: 99px; background: var(--panel2); color: var(--muted); white-space: nowrap; }
+.badge.full { background: var(--ok-soft); color: var(--ok); }
+.badge.part { background: var(--warn-soft); color: var(--warn); }
+.step .body > :first-child { margin-top: 0; }
+.step .body img { max-width: 100%; }
+.step p.hand { color: var(--muted); }
+.opts { display: flex; flex-direction: column; gap: 6px; margin: 10px 0; }
+.opt { display: flex; gap: 10px; align-items: flex-start; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; cursor: pointer; }
+.opt:hover { border-color: var(--accent); }
+.opt input { margin-top: 5px; }
+.opt.sel-ok { border-color: var(--ok); background: var(--ok-soft); }
+.opt.sel-bad { border-color: var(--bad); background: var(--bad-soft); }
+.opt .fb { display: block; font-size: 14px; color: var(--muted); margin-top: 2px; }
+.opt p { margin: 0; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
+.result { margin-top: 12px; padding: 10px 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel2); white-space: pre-wrap; overflow-wrap: anywhere; }
+.result.ok { border-color: var(--ok); background: var(--ok-soft); }
+.result.part { border-color: var(--warn); background: var(--warn-soft); }
+.result.bad { border-color: var(--bad); background: var(--bad-soft); }
+.result .ttl { font-weight: 650; }
+.result pre { margin: 6px 0 0; background: var(--panel); white-space: pre-wrap; }
+.match-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; align-items: center; padding: 6px 0; border-bottom: 1px dashed var(--line); }
+.match-row select { width: 100%; }
+@media (max-width: 600px) { .match-row { grid-template-columns: 1fr; gap: 4px; } }
+.parsons { list-style: none; padding: 0; margin: 10px 0; display: flex; flex-direction: column; gap: 6px; }
+.parsons li { display: flex; align-items: center; gap: 6px; background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 4px 6px; cursor: grab; }
+.parsons li.drag { opacity: .4; }
+.parsons li .ln { flex: 1; white-space: pre; overflow-x: auto; font-family: ui-monospace, Consolas, monospace; font-size: 14.5px; padding: 4px 0; }
+.parsons li button { padding: 2px 8px; font-size: 13px; }
+.dataset pre { max-height: 260px; overflow: auto; }
+.answer { width: 100%; }
+.io { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 10px 0; }
+.io > div > div { font-size: 13px; color: var(--muted); margin-bottom: 2px; }
+.io pre { margin: 0; white-space: pre-wrap; }
+@media (max-width: 600px) { .io { grid-template-columns: 1fr; } }
+.editor { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; margin-top: 10px; }
+.editor textarea { width: 100%; min-height: 200px; border: none; border-radius: 0; background: var(--code-bg); font-family: ui-monospace, Consolas, monospace; font-size: 14.5px; tab-size: 4; resize: vertical; }
+.CodeMirror { height: auto; min-height: 180px; font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 14.5px; background: var(--code-bg); color: var(--text); }
+.CodeMirror-scroll { min-height: 180px; max-height: 520px; }
+.CodeMirror-gutters { background: var(--panel2); border-right: 1px solid var(--line); }
+.CodeMirror-linenumber { color: var(--muted); }
+.CodeMirror-cursor { border-left-color: var(--text); }
+.CodeMirror-selected { background: var(--accent-soft) !important; }
+.cm-s-default .cm-keyword { color: #a1379b; } .cm-s-default .cm-def { color: #2453b5; } .cm-s-default .cm-string { color: #23824b; }
+.cm-s-default .cm-number { color: #9c5b00; } .cm-s-default .cm-comment { color: #7a828f; } .cm-s-default .cm-builtin { color: #2b7a8c; } .cm-s-default .cm-variable-2 { color: var(--text); }
+:root[data-theme="dark"] .cm-s-default .cm-keyword { color: #d88cf0; } :root[data-theme="dark"] .cm-s-default .cm-def { color: #8fb1ff; }
+:root[data-theme="dark"] .cm-s-default .cm-string { color: #7fd29c; } :root[data-theme="dark"] .cm-s-default .cm-number { color: #f0b46a; }
+:root[data-theme="dark"] .cm-s-default .cm-builtin { color: #6fc6d8; } :root[data-theme="dark"] .cm-s-default .cm-variable { color: var(--text); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .cm-s-default .cm-keyword { color: #d88cf0; } :root:not([data-theme="light"]) .cm-s-default .cm-def { color: #8fb1ff; }
+  :root:not([data-theme="light"]) .cm-s-default .cm-string { color: #7fd29c; } :root:not([data-theme="light"]) .cm-s-default .cm-number { color: #f0b46a; }
+  :root:not([data-theme="light"]) .cm-s-default .cm-builtin { color: #6fc6d8; } :root:not([data-theme="light"]) .cm-s-default .cm-variable { color: var(--text); }
+}
+details.run { margin-top: 10px; }
+details.run summary { cursor: pointer; color: var(--accent); font-size: 14.5px; }
+details.run textarea { width: 100%; min-height: 70px; margin-top: 6px; font-family: ui-monospace, Consolas, monospace; font-size: 14px; }
+.pystat { font-size: 13px; color: var(--muted); }
+.pystat.err { color: var(--bad); }
+.pager { display: flex; justify-content: space-between; gap: 10px; margin-top: 22px; }
+.pager button { max-width: 48%; text-align: left; }
+
+/* модальные окна */
+.modal { position: fixed; inset: 0; background: rgba(10,14,22,.55); display: grid; place-items: center; z-index: 50; padding: 16px; }
+.modal .box { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 22px; width: min(560px, 100%); max-height: 90vh; overflow: auto; }
+.modal .box.wide { width: min(860px, 100%); }
+.modal h2 { margin-top: 0; }
+.modal textarea { width: 100%; min-height: 320px; font-family: ui-monospace, Consolas, monospace; font-size: 13px; }
+.menu { position: absolute; right: 12px; top: 52px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.15); padding: 6px; display: flex; flex-direction: column; min-width: 240px; z-index: 40; }
+.menu button { border: none; text-align: left; background: none; padding: 9px 12px; }
+.menu button:hover { background: var(--panel2); }
+.toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: var(--text); color: var(--bg); padding: 9px 16px; border-radius: 10px; z-index: 60; font-size: 14.5px; }
+/* платформа: дополнения к оформлению самоучителя */
+.side .wk-h { cursor: pointer; border-radius: 8px; }
+.side .wk-h:hover { background: var(--panel2); }
+.side .wk.closed a.ls { display: none; }
+.side .wk-h .chev { margin-right: 4px; display: inline-block; transition: transform .15s; }
+.side .wk.closed .chev { transform: rotate(-90deg); }
+.timer { font-variant-numeric: tabular-nums; font-weight: 650; }
+.timer.low { color: var(--bad); }
+.loading { color: var(--muted); padding: 30px 0; }
+.who { font-size: 14px; color: var(--muted); white-space: nowrap; }
+.who b { color: var(--text); }
+</style>
+</head>
+<body>
+<header class="top">
+  <button class="menu-btn" id="navBtn" aria-label="Содержание">☰</button>
+  <div class="brand" id="brand">МОБАК <small>· математические основы и базовые алгоритмы криптографии</small></div>
+  <div class="grow"></div>
+  <div class="score" id="score"></div>
+  <button id="reportBtn" class="primary"><span class="hide-sm">Отчёт преподавателю</span><span class="show-sm">Отчёт</span></button>
+  <button id="moreBtn" aria-label="Ещё">⋯</button>
+</header>
+<div class="layout">
+  <nav class="side" id="side"></nav>
+  <main id="main"><div class="loading">Загрузка курса…</div></main>
+</div>
+<script>
+const PYODIDE = 'https://cdn.jsdelivr.net/pyodide/v0.26.4/full/';
+const KEY = 'mobak-lms-v1';
+const DS_LIMIT = 5 * 60 * 1000;  // как на Stepik: 5 минут на ответ после скачивания данных
+
+/* ---------- состояние (этап 1 — в браузере; этап 2 — Supabase через тот же интерфейс API) ---------- */
+let S = { uid: '', name: '', steps: {} };
+try { const raw = localStorage.getItem(KEY); if (raw) S = Object.assign(S, JSON.parse(raw)); } catch (e) {}
+if (!S.uid) S.uid = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2));
+let saveWarned = false;
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify(S)); }
+  catch (e) { if (!saveWarned) { saveWarned = true; toast('Браузер не даёт сохранять прогресс. Сохраняйте его в файл через меню ⋯'); } }
+}
+const rec = id => (S.steps[id] = S.steps[id] || {});
+
+// Точки связи с сервером. Сейчас всё хранится локально; на этапе 2 здесь появятся вызовы Supabase:
+// issue → insert в datasets_issued (время выдачи ставит сервер), submit → insert в submissions.
+const API = {
+  async issue(step, setNo) { return { issued_at: Date.now() }; },
+  async submit(step, kind, payload, prelim, hint) { /* этап 2: сдача уходит на сервер для перепроверки */ },
+};
+
+/* ---------- каталог курса ---------- */
+let CAT = null;            // data/course.json: модули, уроки, шаги (без содержимого)
+const MOD = {};            // загруженные модули: n -> данные data/mNN.json
+const STEPMETA = {}, LESSONS = [];
+async function loadCatalog() {
+  CAT = await (await fetch('data/course.json', { cache: 'no-cache' })).json();
+  CAT.modules.forEach(M => M.lessons.forEach((l, li) => {
+    l.key = 'm' + M.n + 'l' + (li + 1); l.mod = M; LESSONS.push(l);
+    l.steps.forEach((s, si) => { s.lesson = l; s.num = si + 1; STEPMETA[s.id] = s; });
+  }));
+}
+async function loadModule(n) {
+  if (!MOD[n]) MOD[n] = fetch('data/m' + String(n).padStart(2, '0') + '.json', { cache: 'no-cache' }).then(r => r.json());
+  return MOD[n];
+}
+
+/* ---------- утилиты ---------- */
+const $ = (sel, el = document) => el.querySelector(sel);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const strip = h => { const d = document.createElement('div'); d.innerHTML = h; return d.textContent; };
+function el(tag, attrs = {}, html) {
+  const e = document.createElement(tag);
+  for (const k in attrs) { if (k === 'on') for (const ev in attrs.on) e.addEventListener(ev, attrs.on[ev]); else e.setAttribute(k, attrs[k]); }
+  if (html !== undefined) e.innerHTML = html;
+  return e;
+}
+function hash(str) { let h = 2166136261; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+function rng(seed) { let a = hash(seed); return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function shuffled(arr, seed) { const a = arr.slice(), r = rng(seed); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+// тот же хеш, что в lms/build.py: sha256(части через U+241F)
+async function sha(...parts) {
+  const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(parts.map(String).join('␟')));
+  return Array.from(new Uint8Array(d)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+const normNum = x => { const v = parseFloat(String(x).replace(',', '.')); return Number.isFinite(v) ? String(Number(v.toPrecision(12))) : null; };
+const fmt = x => (Math.round(x * 100) / 100).toString().replace('.', ',');
+const ofBalls = n => n + ' ' + (n % 10 === 1 && n % 100 !== 11 ? 'балла' : 'баллов');
+function toast(msg) { const t = el('div', { class: 'toast' }, esc(msg)); document.body.appendChild(t); setTimeout(() => t.remove(), 3500); }
+function download(name, text) { const a = el('a', { href: URL.createObjectURL(new Blob([text], { type: 'text/plain;charset=utf-8' })), download: name }); document.body.appendChild(a); a.click(); a.remove(); }
+async function copy(text) { try { await navigator.clipboard.writeText(text); toast('Скопировано'); } catch (e) { toast('Не удалось скопировать — выделите текст вручную'); } }
+
+const TYPE = { text: 'Теория', choice: 'Тест', number: 'Числовой ответ', matching: 'Сопоставление', parsons: 'Собрать код', dataset: 'Задача на данные', code: 'Программа' };
+const got = s => s.cost * ((S.steps[s.id] || {}).score || 0);
+const isTask = s => s.t !== 'text';
+function lessonStat(l) { let g = 0, m = 0, done = 0, n = 0; l.steps.forEach(s => { if (!isTask(s)) return; n++; g += got(s); m += s.cost; if ((S.steps[s.id] || {}).score === 1) done++; }); return { g, m, done, n }; }
+function modStat(M) { let g = 0, m = 0; M.lessons.forEach(l => { const t = lessonStat(l); g += t.g; m += t.m; }); return { g, m }; }
+const totalGot = () => Object.values(STEPMETA).reduce((a, s) => a + got(s), 0);
+
+/* ---------- Python в браузере (Pyodide в Web Worker) ---------- */
+const RUNNER = String.raw`
+import sys, io, builtins, math, random, types, json, marshal, base64
+
+def _load(src):
+    m = types.ModuleType("checker")
+    if src.startswith("PYC:"):
+        code = marshal.loads(base64.b64decode(src[4:]))
+    else:
+        code = compile(src, "checker.py", "exec")
+    exec(code, m.__dict__)
+    return m
+
+def _sc(r):
+    hint = ""
+    if isinstance(r, tuple):
+        hint = str(r[1]) if len(r) > 1 and r[1] else ""
+        r = r[0]
+    if r is True: s = 1.0
+    elif r is False or r is None: s = 0.0
+    else: s = float(r)
+    return s, hint
+
+def _ds(src, seed):
+    m = _load(src)
+    random.seed(seed)
+    g = m.generate()
+    ds, clue = g if isinstance(g, tuple) else (g, m.solve(g))
+    return m, ds, clue
+
+def ds_get(src, seed):
+    return _ds(src, seed)[1]
+
+def ds_check(src, seed, reply):
+    m, ds, clue = _ds(src, seed)
+    s, h = _sc(m.check(reply, clue))
+    return json.dumps({"score": s, "hint": h})
+
+def ds_selftest(src, seed, bad):
+    m, ds, clue = _ds(src, seed)
+    ans = m.solve(ds)
+    wrong = eval(bad, {"ds": ds, "ans": ans, "random": random}) if bad else ans + " 1"
+    return json.dumps([_sc(m.check(ans, clue))[0], _sc(m.check(wrong, clue))[0], _sc(m.check("", clue))[0]])
+
+import hashlib, hmac as _hmac
+if not hasattr(hashlib, "pbkdf2_hmac"):
+    # в Python 3.12 убрана запасная реализация на чистом Python, а в Pyodide нет OpenSSL — возвращаем её (RFC 8018)
+    def pbkdf2_hmac(hash_name, password, salt, iterations, dklen=None):
+        password, salt = bytes(password), bytes(salt)
+        inner, outer = hashlib.new(hash_name), hashlib.new(hash_name)
+        blocksize = getattr(inner, "block_size", 64)
+        if len(password) > blocksize:
+            password = hashlib.new(hash_name, password).digest()
+        password = password + b"\x00" * (blocksize - len(password))
+        inner.update(password.translate(bytes(x ^ 0x36 for x in range(256))))
+        outer.update(password.translate(bytes(x ^ 0x5C for x in range(256))))
+        def prf(msg):
+            icpy, ocpy = inner.copy(), outer.copy()
+            icpy.update(msg)
+            ocpy.update(icpy.digest())
+            return ocpy.digest()
+        if iterations < 1:
+            raise ValueError(iterations)
+        dklen = dklen or outer.digest_size
+        dkey, loop = b"", 1
+        while len(dkey) < dklen:
+            prev = prf(salt + loop.to_bytes(4, "big"))
+            rkey = int.from_bytes(prev, "big")
+            for _ in range(iterations - 1):
+                prev = prf(prev)
+                rkey ^= int.from_bytes(prev, "big")
+            loop += 1
+            dkey += rkey.to_bytes(inner.digest_size, "big")
+        return dkey[:dklen]
+    hashlib.pbkdf2_hmac = pbkdf2_hmac
+
+# Пакеты с C/Rust-расширениями нельзя выгружать между запусками: повторный импорт создаёт новые классы,
+# и isinstance в cryptography перестаёт узнавать свои же объекты. Их оставляем в sys.modules.
+_KEEP = ("cryptography", "numpy", "_cffi_backend", "cffi", "hashlib", "_hashlib", "hmac", "secrets", "base64", "typing")
+
+def _snapshot():
+    return dict(builtins.__dict__), dict(math.__dict__), set(sys.modules)
+
+def _restore(snap):
+    b, mt, mods = snap
+    for d, saved in ((builtins.__dict__, b), (math.__dict__, mt)):
+        for k in [k for k in d if k not in saved]:
+            del d[k]
+        for k, v in saved.items():
+            if d.get(k, None) is not v:
+                d[k] = v
+    for k in [k for k in sys.modules if k not in mods and not k.split(".")[0] in _KEEP]:
+        del sys.modules[k]
+
+def _run(header, code, footer, stdin):
+    hl = header.count("\n") + 1
+    cl = code.count("\n") + 1
+    script = "\n".join([header, code, footer])
+    snap = _snapshot()
+    old = sys.stdin, sys.stdout, sys.stderr
+    out = io.StringIO()
+    sys.stdin, sys.stdout, sys.stderr = io.StringIO(stdin), out, io.StringIO()
+    err = ""
+    try:
+        exec(compile(script, "solution.py", "exec"), {"__name__": "__main__", "__builtins__": builtins})
+    except SystemExit:
+        pass
+    except BaseException as e:
+        line = getattr(e, "lineno", None) if isinstance(e, SyntaxError) else None
+        tb = e.__traceback__
+        while tb is not None:
+            if tb.tb_frame.f_code.co_filename == "solution.py":
+                line = tb.tb_lineno
+            tb = tb.tb_next
+        where = ""
+        if line is not None:
+            if hl < line <= hl + cl:
+                where = " (строка {} вашего кода)".format(line - hl)
+            elif line > hl + cl:
+                where = " (в проверочной части — проверьте, что функция возвращает значение нужного вида)"
+        msg = e.msg if isinstance(e, SyntaxError) else e
+        err = "{}: {}{}".format(type(e).__name__, msg, where)
+    finally:
+        sys.stdin, sys.stdout, sys.stderr = old
+        _restore(snap)
+    return out.getvalue(), err
+
+def code_run(header, code, footer, stdin):
+    out, err = _run(header, code, footer, stdin)
+    return json.dumps({"out": out[:20000], "err": err})
+
+def code_check(src, header, footer, code, samples):
+    m = _load(src)
+    random.seed(1)
+    tests = [t if isinstance(t, (list, tuple)) else (t, m.solve(t)) for t in m.generate()]
+    for i, (inp, clue) in enumerate(tests):
+        out, err = _run(header, code, footer, inp)
+        s, h = _sc(m.check(out, clue))
+        if s < 1:
+            r = {"ok": False, "n": i + 1, "total": len(tests), "err": err, "hint": h}
+            if i < samples:
+                r.update({"input": inp, "expected": str(clue), "got": out[:5000]})
+            return json.dumps(r)
+    return json.dumps({"ok": True, "total": len(tests)})
+`;
+const WORKER = `
+let py = null;
+const ready = (async () => {
+  importScripts('${PYODIDE}pyodide.js');
+  py = await loadPyodide({ indexURL: '${PYODIDE}' });
+  py.runPython(self.RUNNER_SRC);
+})();
+onmessage = async (e) => {
+  if (e.data.runner) { self.RUNNER_SRC = e.data.runner; ready.then(() => postMessage({ ready: true }), err => postMessage({ fail: String(err) })); return; }
+  const { id, op, args, imports } = e.data;
+  try {
+    await ready;
+    if (imports) { postMessage({ id, status: 'packages' }); await py.loadPackagesFromImports(imports); }
+    const r = py.globals.get(op)(...args);
+    postMessage({ id, ok: true, r });
+  } catch (err) { postMessage({ id, ok: false, err: String(err) }); }
+};`;
+const PY = { w: null, ready: null, seq: 0, pend: {}, state: 'idle', msg: '' };
+function pyStatus(state, msg) { PY.state = state; PY.msg = msg || ''; document.querySelectorAll('.pystat').forEach(paintPy); }
+function paintPy(e) {
+  e.className = 'pystat' + (PY.state === 'fail' ? ' err' : '');
+  e.textContent = PY.state === 'loading' ? 'Загружается Python (при первом открытии ~10 МБ, нужен интернет)…'
+    : PY.state === 'packages' ? 'Загружаются библиотеки (cryptography / numpy) — один раз, около 10 секунд…'
+    : PY.state === 'ready' ? 'Python готов' : PY.state === 'fail' ? 'Python не загрузился: нужен интернет. Обновите страницу, когда сеть появится. ' + PY.msg : '';
+}
+function pyStart() {
+  if (PY.ready) return PY.ready;
+  pyStatus('loading');
+  PY.ready = new Promise((res, rej) => {
+    let w;
+    try { w = new Worker(URL.createObjectURL(new Blob([WORKER], { type: 'text/javascript' }))); }
+    catch (e) { pyStatus('fail', String(e)); PY.ready = null; return rej(e); }
+    PY.w = w;
+    w.onmessage = (e) => {
+      const d = e.data;
+      if (d.ready) { pyStatus('ready'); return res(); }
+      if (d.fail) { pyStatus('fail', d.fail); PY.ready = null; w.terminate(); return rej(new Error(d.fail)); }
+      if (d.status === 'packages') { if (PY.state !== 'packages') pyStatus('packages'); return; }
+      const p = PY.pend[d.id]; if (!p) return; delete PY.pend[d.id]; clearTimeout(p.timer);
+      if (PY.state === 'packages') pyStatus('ready');
+      d.ok ? p.res(d.r) : p.rej(new Error(d.err));
+    };
+    w.onerror = (e) => { pyStatus('fail', e.message || ''); PY.ready = null; rej(e); };
+    w.postMessage({ runner: RUNNER });
+  });
+  return PY.ready;
+}
+// imports — текст, по импортам в котором Pyodide догрузит пакеты (cryptography, numpy); время загрузки пакетов не входит в лимит
+async function py(op, args, timeout = 20000, imports = '') {
+  await pyStart();
+  return new Promise((res, rej) => {
+    const id = ++PY.seq;
+    if (imports && /^\s*(import|from)\s+(cryptography|numpy)\b/m.test(imports)) timeout += 120000;  // первая загрузка пакетов
+    const timer = setTimeout(() => {
+      delete PY.pend[id]; PY.w.terminate(); PY.ready = null; pyStatus('idle');
+      Object.values(PY.pend).forEach(p => p.rej(new Error('restart'))); PY.pend = {};
+      const e = new Error('timeout'); e.timeout = true; rej(e); pyStart();
+    }, timeout);
+    PY.pend[id] = { res, rej, timer };
+    PY.w.postMessage({ id, op, args, imports });
+  });
+}
+
+/* ---------- оценка шага ---------- */
+function setScore(s, score, extra = {}) {
+  const r = rec(s.id);
+  r.att = (r.att || 0) + 1; r.last = score; r.score = Math.max(r.score || 0, score); r.ts = Date.now();
+  Object.assign(r, extra); save(); refreshChrome(s);
+}
+function resultBox(box, score, title, text) {
+  box.className = 'result ' + (score === 1 ? 'ok' : score > 0 ? 'part' : 'bad');
+  box.innerHTML = '<div class="ttl">' + esc(title) + '</div>' + (text ? '<div>' + text + '</div>' : '');
+  box.hidden = false;
+}
+
+/* ---------- отрисовка шагов ---------- */
+const R = {};
+R.text = () => null;
+
+R.choice = (s, root) => {
+  const r = rec(s.id), opts = shuffled(s.opts.map((o, i) => [i, ...o]), S.uid + s.id);
+  const wrap = el('div', { class: 'opts' }), type = s.multi ? 'checkbox' : 'radio';
+  opts.forEach(([i, text]) => {
+    const lab = el('label', { class: 'opt' });
+    const inp = el('input', { type, name: 'o' + s.id, value: i });
+    if ((r.sel || []).includes(i)) inp.checked = true;
+    lab.append(inp, el('span', {}, text + '<span class="fb"></span>'));
+    wrap.appendChild(lab);
+  });
+  const box = el('div', { class: 'result', hidden: '' });
+  const btn = el('button', { class: 'primary', on: { click: async () => {
+    const sel = [...wrap.querySelectorAll('input:checked')].map(i => +i.value).sort((a, b) => a - b);
+    if (!sel.length) return toast('Выберите вариант');
+    const ok = s.always || (await sha(s.id, ...sel)) === s.key;
+    wrap.querySelectorAll('.opt').forEach(lab => {
+      const i = +$('input', lab).value; $('.fb', lab).textContent = '';
+      lab.classList.remove('sel-ok', 'sel-bad');
+      if (sel.includes(i) && !s.always) { lab.classList.add(ok ? 'sel-ok' : 'sel-bad'); $('.fb', lab).textContent = s.opts[i][1] || ''; }
+    });
+    const texts = sel.map(i => s.opts[i][0]);
+    setScore(s, ok ? 1 : 0, { sel });
+    API.submit(s, 'choice', { selected: texts }, ok ? 1 : 0, '');
+    resultBox(box, ok ? 1 : 0, s.always ? 'Ответ принят' : ok ? 'Верно!' : 'Неверно, попробуйте ещё раз',
+      !ok && s.multi ? 'Нужно отметить все верные варианты и только их.' : '');
+  } } }, 'Отправить');
+  root.append(wrap, el('div', { class: 'actions' }), box); $('.actions', root).append(btn);
+};
+
+R.number = (s, root) => {
+  const r = rec(s.id);
+  const inp = el('input', { type: 'text', inputmode: 'decimal', placeholder: 'Ваш ответ', class: 'answer' }); inp.value = r.reply || '';
+  const box = el('div', { class: 'result', hidden: '' });
+  const go = async () => {
+    const v = normNum(inp.value.replace(/\s/g, ''));
+    if (v === null) return toast('Введите число');
+    const ok = s.key ? (await sha(s.id, v)) === s.key : Math.abs(parseFloat(v) - parseFloat(String(s.answer).replace(',', '.'))) <= s.err + 1e-12;
+    setScore(s, ok ? 1 : 0, { reply: inp.value });
+    API.submit(s, 'number', { value: inp.value }, ok ? 1 : 0, '');
+    resultBox(box, ok ? 1 : 0, ok ? 'Верно!' : 'Неверно, попробуйте ещё раз');
+  };
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
+  root.append(inp, el('div', { class: 'actions' }), box); $('.actions', root).append(el('button', { class: 'primary', on: { click: go } }, 'Отправить'));
+};
+
+R.matching = (s, root) => {
+  const r = rec(s.id), seconds = shuffled(s.seconds, S.uid + s.id);
+  const rows = s.firsts.map((first, i) => {
+    const row = el('div', { class: 'match-row' }), sel = el('select');
+    sel.appendChild(el('option', { value: '' }, '— выберите —'));
+    seconds.forEach(t => sel.appendChild(el('option', { value: t }, esc(strip(t)))));
+    if (r.match) sel.value = r.match[i] || '';
+    row.append(el('div', {}, first), sel); return row;
+  });
+  const box = el('div', { class: 'result', hidden: '' });
+  const btn = el('button', { class: 'primary', on: { click: async () => {
+    const vals = rows.map(rw => $('select', rw).value);
+    if (vals.some(v => !v)) return toast('Заполните все строки');
+    const hs = await Promise.all(vals.map((v, i) => sha(s.id, s.firsts[i], v)));
+    const good = hs.filter((h, i) => h === s.keys[i]).length, ok = good === s.firsts.length;
+    setScore(s, ok ? 1 : 0, { match: vals });
+    API.submit(s, 'matching', { pairs: s.firsts.map((f, i) => [f, vals[i]]) }, ok ? 1 : 0, '');
+    resultBox(box, ok ? 1 : 0, ok ? 'Верно!' : 'Пока неверно', ok ? '' : 'Верных соответствий: ' + good + ' из ' + s.firsts.length + '.');
+  } } }, 'Отправить');
+  root.append(...rows, el('div', { class: 'actions' }), box); $('.actions', root).append(btn);
+};
+
+R.parsons = (s, root) => {
+  const r = rec(s.id);
+  let items = r.order || shuffled(s.lines.map((l, i) => ({ i, lv: 0 })), S.uid + s.id);
+  const ul = el('ol', { class: 'parsons' });
+  let dragFrom = null;
+  const draw = () => {
+    ul.innerHTML = '';
+    items.forEach((it, k) => {
+      const li = el('li', { draggable: 'true' });
+      const ln = el('span', { class: 'ln' }); ln.textContent = '    '.repeat(it.lv) + s.lines[it.i];
+      const b = (t, title, fn) => el('button', { title, 'aria-label': title, on: { click: fn } }, t);
+      li.append(b('↑', 'Выше', () => { if (k) { [items[k - 1], items[k]] = [items[k], items[k - 1]]; draw(); } }),
+        b('↓', 'Ниже', () => { if (k < items.length - 1) { [items[k + 1], items[k]] = [items[k], items[k + 1]]; draw(); } }),
+        ln,
+        b('←', 'Убрать отступ', () => { if (it.lv) { it.lv--; draw(); } }),
+        b('→', 'Добавить отступ', () => { if (it.lv < 4) { it.lv++; draw(); } }));
+      li.addEventListener('dragstart', () => { dragFrom = k; li.classList.add('drag'); });
+      li.addEventListener('dragend', () => li.classList.remove('drag'));
+      li.addEventListener('dragover', e => e.preventDefault());
+      li.addEventListener('drop', e => { e.preventDefault(); if (dragFrom === null || dragFrom === k) return; const [m] = items.splice(dragFrom, 1); items.splice(k, 0, m); dragFrom = null; draw(); });
+      ul.appendChild(li);
+    });
+  };
+  draw();
+  const box = el('div', { class: 'result', hidden: '' });
+  const btn = el('button', { class: 'primary', on: { click: async () => {
+    const ok = (await sha(s.id, ...items.map(it => it.lv + ':' + s.lines[it.i]))) === s.key;
+    const orderOk = ok || (await sha(s.id, ...items.map(it => s.lines[it.i]))) === s.okey;
+    setScore(s, ok ? 1 : 0, { order: items });
+    API.submit(s, 'parsons', { lines: items.map(it => [it.lv, s.lines[it.i]]) }, ok ? 1 : 0, '');
+    resultBox(box, ok ? 1 : 0, ok ? 'Верно!' : 'Пока неверно', ok ? '' : orderOk ? 'Порядок строк верный — проверьте отступы.' : 'Проверьте порядок строк.');
+  } } }, 'Отправить');
+  root.append(el('p', { class: 'small' }, 'Перетаскивайте строки мышью или кнопками ↑ ↓; отступ — кнопками → ←.'), ul, el('div', { class: 'actions' }), box);
+  $('.actions', root).append(btn);
+};
+
+R.dataset = (s, root) => {
+  const r = rec(s.id);
+  const area = el('div', { class: 'dataset' });
+  const stat = el('div', { class: 'pystat' }); paintPy(stat);
+  const getBtn = el('button', { class: 'primary' }, 'Скачать');
+  const inp = el('input', { type: 'text', placeholder: 'Ваш ответ', class: 'answer', autocomplete: 'off' }); inp.value = r.reply || '';
+  const send = el('button', { class: 'primary' }, 'Отправить');
+  const timer = el('span', { class: 'timer' });
+  const box = el('div', { class: 'result', hidden: '' });
+  const seed = () => S.uid + '|' + s.id + '|' + (r.set || 0);   // общий контракт с перепроверкой (lms/grader)
+  const left = () => r.at ? DS_LIMIT - (Date.now() - r.at) : 0;
+  let tick = null;
+  const paintTimer = () => {
+    const ms = left();
+    if (!r.at || r.ds === undefined) { timer.textContent = ''; return; }
+    if (ms <= 0) { timer.className = 'timer low'; timer.textContent = 'Время на ответ вышло — возьмите новый набор'; inp.disabled = send.disabled = true; clearInterval(tick); return; }
+    const m = Math.floor(ms / 60000), sec = Math.floor(ms % 60000 / 1000);
+    timer.className = 'timer' + (ms < 60000 ? ' low' : ''); timer.textContent = 'Осталось ' + m + ':' + String(sec).padStart(2, '0');
+  };
+  const show = () => {
+    area.innerHTML = '';
+    if (r.ds === undefined) { inp.disabled = send.disabled = true; getBtn.textContent = 'Скачать'; return; }
+    inp.disabled = send.disabled = left() <= 0;
+    area.append(el('div', { class: 'small' }, 'Ваши данные (набор №' + ((r.set || 0) + 1) + '):'), el('pre', {}, esc(r.ds)), el('div', { class: 'actions' }));
+    const a = $('.actions', area);
+    a.append(el('button', { class: 'link', on: { click: () => download(s.id + '.txt', r.ds) } }, 'Скачать файл ещё раз'),
+      el('button', { class: 'link', on: { click: () => copy(r.ds) } }, 'Копировать'), timer);
+    getBtn.textContent = 'Новый набор';
+    clearInterval(tick); paintTimer(); tick = setInterval(() => { if (!document.body.contains(timer)) return clearInterval(tick); paintTimer(); }, 1000);
+  };
+  const fetchDs = async () => {
+    getBtn.disabled = true;
+    try {
+      if (r.ds !== undefined) { r.set = (r.set || 0) + 1; delete r.ds; inp.value = ''; box.hidden = true; }
+      const ds = await py('ds_get', [s.src, seed()]);
+      const iss = await API.issue(s, r.set || 0);
+      r.ds = ds; r.at = iss.issued_at; save(); show();
+      download(s.id + '.txt', ds);
+    } catch (e) { toast('Не получилось: ' + (e.timeout ? 'превышено время' : 'Python не загрузился')); }
+    getBtn.disabled = false;
+  };
+  getBtn.addEventListener('click', fetchDs);
+  const go = async () => {
+    if (!inp.value.trim()) return toast('Введите ответ');
+    if (left() <= 0) return toast('Время на ответ вышло — возьмите новый набор');
+    send.disabled = true; send.textContent = 'Проверяем…';
+    try {
+      const res = JSON.parse(await py('ds_check', [s.src, seed(), inp.value]));
+      setScore(s, res.score, { reply: inp.value });
+      API.submit(s, 'dataset', { reply: inp.value, set_no: r.set || 0 }, res.score, res.hint);
+      resultBox(box, res.score, res.score === 1 ? 'Верно!' : res.score > 0 ? 'Частично верно: ' + fmt(res.score * s.cost) + ' из ' + ofBalls(s.cost) : 'Неверно', esc(res.hint || ''));
+    } catch (e) { toast(e.timeout ? 'Превышено время проверки' : 'Ошибка проверки: ' + e.message); }
+    send.disabled = left() <= 0; send.textContent = 'Отправить';
+  };
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
+  send.addEventListener('click', go);
+  root.append(el('div', { class: 'actions' }), area, inp, el('div', { class: 'actions' }), box, stat);
+  root.querySelectorAll('.actions')[0].append(getBtn);
+  root.querySelectorAll('.actions')[1].append(send);
+  show();
+};
+
+function makeEditor(host, value, onChange) {
+  if (window.CodeMirror) {
+    const cm = CodeMirror(host, { value, mode: 'python', lineNumbers: true, indentUnit: 4, tabSize: 4, indentWithTabs: false, viewportMargin: Infinity,
+      extraKeys: { Tab: c => c.somethingSelected() ? c.indentSelection('add') : c.replaceSelection('    '), 'Shift-Tab': c => c.indentSelection('subtract') } });
+    cm.on('change', () => onChange(cm.getValue()));
+    return { get: () => cm.getValue(), set: v => cm.setValue(v), refresh: () => cm.refresh() };
+  }
+  const ta = el('textarea', { spellcheck: 'false' }); ta.value = value; host.appendChild(ta);
+  ta.addEventListener('input', () => onChange(ta.value));
+  ta.addEventListener('keydown', e => { if (e.key === 'Tab') { e.preventDefault(); ta.setRangeText('    ', ta.selectionStart, ta.selectionEnd, 'end'); onChange(ta.value); } });
+  return { get: () => ta.value, set: v => { ta.value = v; }, refresh: () => {} };
+}
+
+R.code = (s, root) => {
+  const r = rec(s.id), tpl = s.tpl.replace(/^\n$/, '');
+  (s.examples || []).forEach((ex, k) => {
+    const io = el('div', { class: 'io' });
+    io.append(el('div', {}, '<div>Пример входных данных' + (s.examples.length > 1 ? ' ' + (k + 1) : '') + '</div><pre>' + esc(ex[0]) + '</pre>'),
+      el('div', {}, '<div>Ожидаемый вывод</div><pre>' + esc(ex[1]) + '</pre>'));
+    root.appendChild(io);
+  });
+  const host = el('div', { class: 'editor' });
+  root.appendChild(host);
+  const ed = makeEditor(host, r.code !== undefined ? r.code : tpl, v => { r.code = v; save(); });
+  const box = el('div', { class: 'result', hidden: '' });
+  const stat = el('div', { class: 'pystat' }); paintPy(stat);
+  const check = el('button', { class: 'primary' }, 'Отправить');
+  const budget = () => Math.max(30000, (s.ntests || 10) * (s.tl || 5) * 1000);
+  check.addEventListener('click', async () => {
+    const code = ed.get();
+    if (!code.trim() || code.trim() === tpl.trim()) return toast('Сначала напишите решение');
+    if (s.server) {   // в браузере эту задачу не проверить — только сохранить для серверной перепроверки
+      r.code = code; r.att = (r.att || 0) + 1; r.pending = code; save();
+      API.submit(s, 'code', { code }, null, '');
+      return resultBox(box, 0.5, 'Решение сохранено для проверки на сервере',
+        'Эту задачу браузер проверить не может: ' + esc(s.server) + '. Балл появится после серверной перепроверки. Пока можно проверить части решения кнопкой «Запустить».');
+    }
+    check.disabled = true; check.textContent = 'Проверяем…';
+    try {
+      const res = JSON.parse(await py('code_check', [s.src, s.header, s.footer, code, (s.examples || []).length], budget(), s.header + '\n' + code + '\n' + s.footer));
+      setScore(s, res.ok ? 1 : 0, { code, solved: res.ok ? code : r.solved });
+      API.submit(s, 'code', { code }, res.ok ? 1 : 0, res.ok ? '' : res.hint || res.err || '');
+      if (res.ok) resultBox(box, 1, 'Верно! Пройдены все тесты: ' + res.total + '.');
+      else {
+        let t = '';
+        if (res.input !== undefined) t += 'Входные данные:<pre>' + esc(res.input) + '</pre>Ожидалось:<pre>' + esc(res.expected) + '</pre>Ваш вывод:<pre>' + (esc(res.got) || '<i>(пусто)</i>') + '</pre>';
+        if (res.err) t += 'Ошибка: <code>' + esc(res.err) + '</code><br>';
+        if (res.hint) t += esc(res.hint) + '<br>';
+        if (!res.err && !res.hint && res.input === undefined) t += 'Неверный ответ на скрытом тесте. Проверьте граничные случаи (0, 1, отрицательные, большие числа).';
+        resultBox(box, 0, 'Не пройден тест №' + res.n + ' из ' + res.total, t);
+      }
+    } catch (e) { resultBox(box, 0, e.timeout ? 'Превышено время работы' : 'Ошибка проверки', e.timeout ? 'Программа работает слишком долго — возможно, бесконечный цикл или ожидание лишнего input().' : esc(e.message)); r.att = (r.att || 0) + 1; save(); }
+    check.disabled = false; check.textContent = 'Отправить';
+  });
+  const runIn = el('textarea', { spellcheck: 'false' }); runIn.value = (s.examples && s.examples[0]) ? s.examples[0][0] : '';
+  const runOut = el('div', { class: 'result', hidden: '' });
+  const runBtn = el('button', {}, 'Запустить');
+  runBtn.addEventListener('click', async () => {
+    runBtn.disabled = true; runBtn.textContent = 'Выполняется…';
+    try {
+      const code = ed.get();
+      const res = JSON.parse(await py('code_run', [s.header, code, s.footer, runIn.value], (s.tl || 5) * 3000, s.header + '\n' + code + '\n' + s.footer));
+      runOut.className = 'result' + (res.err ? ' bad' : '');
+      runOut.innerHTML = '<div class="ttl">Вывод программы</div><pre>' + (esc(res.out) || '<i>(пусто)</i>') + '</pre>' + (res.err ? 'Ошибка: <code>' + esc(res.err) + '</code>' : '');
+      runOut.hidden = false;
+    } catch (e) { runOut.className = 'result bad'; runOut.innerHTML = e.timeout ? 'Превышено время работы (возможно, бесконечный цикл).' : esc(e.message); runOut.hidden = false; }
+    runBtn.disabled = false; runBtn.textContent = 'Запустить';
+  });
+  const det = el('details', { class: 'run' }, '<summary>Запустить код на своих входных данных</summary>');
+  det.append(runIn, el('div', { class: 'actions' }), runOut); $('.actions', det).append(runBtn);
+  det.addEventListener('toggle', ed.refresh);
+  const reset = el('button', { class: 'link', on: { click: () => { if (confirm('Вернуть исходный шаблон? Ваш код будет удалён.')) { ed.set(tpl); r.code = tpl; save(); } } } }, 'Сбросить код');
+  const acts = el('div', { class: 'actions' }); acts.append(check, reset);
+  root.append(acts, box, det, stat);
+  if (r.solved) resultBox(box, 1, 'Задача уже решена. Можно улучшать код и отправлять снова.');
+  setTimeout(ed.refresh, 0);
+};
+
+/* ---------- экраны ---------- */
+function badgeText(s) { const g = got(s); return s.cost ? fmt(g) + ' из ' + ofBalls(s.cost) : (S.steps[s.id] || {}).score ? 'выполнено' : 'без баллов'; }
+function refreshChrome(s) {
+  $('#score').innerHTML = (S.name ? esc(S.name) + ' · ' : '') + '<b>' + fmt(totalGot()) + '</b> из ' + CAT.total;
+  drawSide();
+  if (s) {
+    const r = S.steps[s.id] || {}, b = $('#badge-' + s.id), a = $('#sb-' + s.id);
+    const cls = !r.score ? '' : r.score === 1 ? 'full' : 'part';
+    if (b) { b.className = 'badge ' + cls; b.textContent = badgeText(s); }
+    if (a) a.className = 'task ' + cls;
+  }
+}
+let CUR = null;
+const OPEN = new Set();
+function drawSide() {
+  const side = $('#side'); side.innerHTML = '';
+  side.appendChild(el('a', { class: 'ls' + (CUR ? '' : ' cur'), href: '#' }, '<span class="dot"></span><span>Начало</span>'));
+  CAT.modules.forEach(M => {
+    const ms = modStat(M), open = OPEN.has(M.n) || (CUR && CUR.mod === M);
+    const box = el('div', { class: 'wk' + (open ? '' : ' closed') });
+    const h = el('div', { class: 'wk-h' }, '<span><span class="chev">▾</span>' + esc(M.label) + '</span><span>' + fmt(ms.g) + '/' + ms.m + '</span>');
+    h.addEventListener('click', () => { open ? OPEN.delete(M.n) : OPEN.add(M.n); if (CUR && CUR.mod === M && open) OPEN.delete(M.n); drawSide(); });
+    box.appendChild(h);
+    M.lessons.forEach(l => {
+      const t = lessonStat(l), dot = !t.n ? '' : t.done === t.n ? 'full' : t.g > 0 ? 'part' : '';
+      box.appendChild(el('a', { class: 'ls' + (CUR === l ? ' cur' : ''), href: '#' + l.key }, '<span class="dot ' + dot + '"></span><span>' + esc(l.title) + '</span>'));
+    });
+    side.appendChild(box);
+  });
+}
+
+function home() {
+  CUR = null; drawSide();
+  const m = $('#main'); m.innerHTML = '';
+  const t = totalGot();
+  const hero = el('div', { class: 'hero' },
+    '<h1>МОБАК — Математические основы и базовые алгоритмы криптографии</h1>' +
+    '<p>14 недель и итоговая работа: Python с нуля, теория чисел, AES, хеши, RSA, эллиптические кривые и TLS. Код пишется и проверяется прямо здесь.</p>' +
+    '<p>Студент: <b>' + esc(S.name || '—') + '</b> · набрано <b>' + fmt(t) + '</b> из ' + CAT.total + ' баллов</p>' +
+    '<div class="bar" style="margin-top:10px"><i style="width:' + (100 * t / CAT.total).toFixed(1) + '%"></i></div>');
+  const nxt = LESSONS.find(l => { const s = lessonStat(l); return s.n && s.done < s.n; });
+  const acts = el('div', { class: 'actions' });
+  acts.append(el('button', { class: 'primary', on: { click: () => location.hash = (nxt || LESSONS[0]).key } }, t > 0 ? 'Продолжить' : 'Начать'));
+  hero.appendChild(acts);
+  const pys = el('div', { class: 'pystat', style: 'margin-top:8px' }); paintPy(pys); hero.appendChild(pys);
+  m.appendChild(hero);
+  if (CAT.test) m.appendChild(el('div', { class: 'result bad' }, '<div class="ttl">Тестовая сборка</div>В данных есть эталонные решения — эту сборку нельзя выкладывать студентам.'));
+  const grid = el('div', { class: 'weeks' });
+  CAT.modules.forEach(M => {
+    const ms = modStat(M), c = el('div', { class: 'wcard' });
+    c.innerHTML = '<div class="n">' + esc(M.label) + '</div><h3>' + esc(M.title.replace(/^Неделя \d+\.\s*|^Итоговая работа\.\s*/, '')) + '</h3>' +
+      '<div class="bar"><i style="width:' + (ms.m ? 100 * ms.g / ms.m : 0).toFixed(1) + '%"></i></div><div class="small">' + fmt(ms.g) + ' из ' + ofBalls(ms.m) + '</div>' +
+      '<ul>' + M.lessons.map(l => '<li>' + esc(l.title) + '</li>').join('') + '</ul>';
+    c.appendChild(el('button', { class: 'go', on: { click: () => location.hash = M.lessons[0].key } }, 'Открыть'));
+    grid.appendChild(c);
+  });
+  m.appendChild(grid);
+  window.scrollTo(0, 0);
+}
+
+async function lesson(l) {
+  CUR = l; drawSide();
+  const m = $('#main'); m.innerHTML = '<div class="loading">Загрузка урока…</div>';
+  let data;
+  try { data = await loadModule(l.mod.n); } catch (e) { m.innerHTML = '<div class="result bad">Не удалось загрузить урок. Проверьте интернет и обновите страницу.</div>'; return; }
+  if (CUR !== l) return;
+  const steps = data.lessons[l.mod.lessons.indexOf(l)].steps;
+  m.innerHTML = '';
+  m.appendChild(el('div', { class: 'crumbs' }, esc(l.mod.label) + ' · ' + esc(l.mod.title.replace(/^Неделя \d+\.\s*|^Итоговая работа\.\s*/, ''))));
+  m.appendChild(el('h1', { class: 'lesson-h' }, esc(l.title)));
+  const bar = el('div', { class: 'stepbar' });
+  l.steps.forEach(s => {
+    const r = S.steps[s.id] || {}, cls = (isTask(s) ? 'task ' : '') + (!r.score ? '' : r.score === 1 ? 'full' : 'part');
+    bar.appendChild(el('a', { id: 'sb-' + s.id, class: cls, href: 'javascript:void 0', title: (TYPE[s.t] || '') + ': ' + s.title,
+      on: { click: () => document.getElementById('st' + s.id).scrollIntoView({ behavior: 'smooth' }) } }, s.num));
+  });
+  m.appendChild(bar);
+  steps.forEach((s, i) => {
+    const meta = l.steps[i];
+    s.cost = meta.cost;
+    const card = el('section', { class: 'step', id: 'st' + s.id });
+    const h = el('div', { class: 'step-h' }, '<span>Шаг ' + meta.num + ' · ' + TYPE[s.t] + '</span>');
+    if (isTask(s)) { const r = S.steps[s.id] || {}; h.appendChild(el('span', { id: 'badge-' + s.id, class: 'badge ' + (!r.score ? '' : r.score === 1 ? 'full' : 'part') }, badgeText(s))); }
+    card.append(h, el('div', { class: 'body' }, s.html));
+    if (R[s.t]) R[s.t](s, card);
+    m.appendChild(card);
+  });
+  const i = LESSONS.indexOf(l), pager = el('div', { class: 'pager' });
+  pager.append(i > 0 ? el('button', { on: { click: () => location.hash = LESSONS[i - 1].key } }, '← ' + esc(LESSONS[i - 1].title)) : el('span'),
+    i < LESSONS.length - 1 ? el('button', { class: 'primary', on: { click: () => location.hash = LESSONS[i + 1].key } }, esc(LESSONS[i + 1].title) + ' →') : el('span'));
+  m.appendChild(pager);
+  window.scrollTo(0, 0);
+  if (steps.some(s => s.t === 'code' || s.t === 'dataset')) pyStart().catch(() => {});
+}
+
+function route() {
+  document.body.classList.remove('nav-open');
+  const k = location.hash.slice(1), l = LESSONS.find(x => x.key === k);
+  l ? lesson(l) : home();
+}
+
+/* ---------- имя, отчёт, меню ---------- */
+function askName(force) {
+  if (S.name && !force) return;
+  const md = el('div', { class: 'modal' });
+  md.innerHTML = '<div class="box"><h2>Добро пожаловать!</h2><p>Введите фамилию и имя так, как в журнале группы. Они попадут в отчёт преподавателю.</p>' +
+    '<input type="text" class="answer" id="nm" placeholder="Фамилия Имя" autocomplete="name"><div class="actions"><button class="primary" id="nmOk">Готово</button>' + (force ? '<button id="nmNo">Отмена</button>' : '') + '</div></div>';
+  document.body.appendChild(md);
+  const inp = $('#nm', md); inp.value = S.name || ''; inp.focus();
+  const ok = () => {
+    const v = inp.value.trim().replace(/\s+/g, ' ');
+    if (v.length < 3) return toast('Введите фамилию и имя');
+    S.name = v; save(); md.remove(); refreshChrome(); route();
+  };
+  $('#nmOk', md).onclick = ok; inp.addEventListener('keydown', e => { if (e.key === 'Enter') ok(); });
+  if (force) $('#nmNo', md).onclick = () => md.remove();
+}
+
+function report() {
+  const d = new Date(), pad = n => String(n).padStart(2, '0');
+  const L = [];
+  L.push('МОБАК — отчёт студента', 'Студент: ' + S.name, 'Код студента: ' + S.uid,
+    'Дата отчёта: ' + pad(d.getDate()) + '.' + pad(d.getMonth() + 1) + '.' + d.getFullYear() + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()),
+    'Итого: ' + fmt(totalGot()) + ' из ' + ofBalls(CAT.total), '');
+  CAT.modules.forEach(M => {
+    const ms = modStat(M);
+    L.push('== ' + M.title + ' — ' + fmt(ms.g) + ' из ' + ms.m);
+    M.lessons.forEach(l => l.steps.forEach(s => {
+      if (!isTask(s) || !s.cost) return;
+      const r = S.steps[s.id] || {}, mark = r.score === 1 ? '[+]' : r.score > 0 ? '[~]' : r.att ? '[-]' : '[ ]';
+      L.push('  ' + mark + ' ' + fmt(got(s)) + '/' + s.cost + '  ' + l.title + ' — ' + s.title + (r.att ? '  (попыток: ' + r.att + ')' : ''));
+    }));
+    L.push('');
+  });
+  L.push('Обозначения: [+] решено, [~] частично, [-] есть попытки, [ ] не начато.', '', '== Решения задач на программирование (принятые проверкой)');
+  Object.values(STEPMETA).forEach(s => {
+    const r = S.steps[s.id] || {};
+    if (s.t === 'code' && r.solved) L.push('', '--- ' + s.lesson.mod.label + ' · ' + s.lesson.title + ' — ' + s.title + ' (шаг ' + s.id + ')', r.solved.replace(/\s+$/, ''));
+  });
+  const text = L.join('\n') + '\n';
+  const md = el('div', { class: 'modal' });
+  md.innerHTML = '<div class="box wide"><h2>Отчёт преподавателю</h2><p class="small">Скачайте файл и отправьте его преподавателю (или скопируйте текст в сообщение).</p><textarea readonly></textarea><div class="actions"><button class="primary" id="rDl">Скачать файл</button><button id="rCp">Копировать</button><button id="rX">Закрыть</button></div></div>';
+  document.body.appendChild(md);
+  $('textarea', md).value = text;
+  const fname = 'МОБАК_отчёт_' + S.name.replace(/[^\p{L}\p{N}]+/gu, '_') + '.txt';
+  $('#rDl', md).onclick = () => download(fname, text);
+  $('#rCp', md).onclick = () => copy(text);
+  $('#rX', md).onclick = () => md.remove();
+  md.addEventListener('click', e => { if (e.target === md) md.remove(); });
+}
+
+function menu() {
+  if ($('.menu')) return $('.menu').remove();
+  const mn = el('div', { class: 'menu' });
+  const item = (t, fn) => mn.appendChild(el('button', { on: { click: () => { mn.remove(); fn(); } } }, t));
+  item('Сменить имя', () => askName(true));
+  item('Сохранить прогресс в файл', () => download('МОБАК_прогресс_' + S.name.replace(/[^\p{L}\p{N}]+/gu, '_') + '.json', JSON.stringify(S)));
+  item('Загрузить прогресс из файла', () => {
+    const f = el('input', { type: 'file', accept: '.json,application/json' });
+    f.onchange = async () => { try { const o = JSON.parse(await f.files[0].text()); if (!o.steps || !o.uid) throw 0; S = Object.assign({ uid: '', name: '', steps: {} }, o); save(); refreshChrome(); route(); toast('Прогресс загружен'); } catch (e) { toast('Это не файл прогресса'); } };
+    f.click();
+  });
+  item('Тема: светлая / тёмная', () => { const cur = document.documentElement.dataset.theme; const dark = cur ? cur === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches; document.documentElement.dataset.theme = dark ? 'light' : 'dark'; try { localStorage.setItem(KEY + '-theme', document.documentElement.dataset.theme); } catch (e) {} });
+  document.body.appendChild(mn);
+  setTimeout(() => document.addEventListener('click', function off(e) { if (!mn.contains(e.target)) { mn.remove(); document.removeEventListener('click', off); } }), 0);
+}
+
+try { const th = localStorage.getItem(KEY + '-theme'); if (th) document.documentElement.dataset.theme = th; } catch (e) {}
+document.head.appendChild(el('style', {}, '.show-sm{display:none}@media (max-width:860px){.show-sm{display:inline}}'));
+$('#navBtn').onclick = () => document.body.classList.toggle('nav-open');
+$('#brand').onclick = () => location.hash = '';
+$('#reportBtn').onclick = report;
+$('#moreBtn').onclick = menu;
+(async () => {
+  try { await loadCatalog(); }
+  catch (e) { $('#main').innerHTML = '<div class="result bad">Не удалось загрузить курс. Проверьте интернет и обновите страницу.</div>'; return; }
+  save();
+  window.addEventListener('hashchange', route);
+  refreshChrome(); route(); askName();
+})();
+</script>
+</body>
+</html>
