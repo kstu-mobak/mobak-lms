@@ -7,6 +7,7 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <style>
 :root {
   --bg: #f6f7f9; --panel: #ffffff; --panel2: #f0f2f5; --text: #1d2330; --muted: #5d6676; --line: #dde1e8;
@@ -189,6 +190,10 @@ details.run textarea { width: 100%; min-height: 70px; margin-top: 6px; font-fami
 .loading { color: var(--muted); padding: 30px 0; }
 .who { font-size: 14px; color: var(--muted); white-space: nowrap; }
 .who b { color: var(--text); }
+table.grade { display: table; font-size: 14px; white-space: nowrap; }
+table.grade td:first-child { white-space: normal; min-width: 160px; }
+table.grade td, table.grade th { padding: 4px 8px; }
+.step > summary { cursor: pointer; }
 </style>
 </head>
 <body>
@@ -209,23 +214,104 @@ const PYODIDE = 'https://cdn.jsdelivr.net/pyodide/v0.26.4/full/';
 const KEY = 'mobak-lms-v1';
 const DS_LIMIT = 5 * 60 * 1000;  // как на Stepik: 5 минут на ответ после скачивания данных
 
-/* ---------- состояние (этап 1 — в браузере; этап 2 — Supabase через тот же интерфейс API) ---------- */
+/* ---------- сервер (Supabase) ----------
+   CONFIG вставляет lms/build.py из lms/config.json. Есть CONFIG — студент входит по почте, сдачи уходят на сервер,
+   прогресс берётся с сервера. Нет CONFIG (тестовая сборка) — всё хранится только в браузере, как раньше. */
+const CONFIG = {"supabase_url": "https://tdyxkkylfhqpvdlbpwzs.supabase.co", "supabase_anon_key": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRkeXhra3lsZmhxcHZkbGJwd3pzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI4NzQyMTYsImV4cCI6MjEwODQ1MDIxNn0.5qUbBaZG2PNBJdbF1OYVjhmfjxVYYJR5dG_UhMQvsYo", "weights": {"week": 10, "prac": 10, "lab": 40, "ctrl": 20, "final": 15, "test": 5}};
+const sb = CONFIG && CONFIG.supabase_url && window.supabase
+  ? window.supabase.createClient(CONFIG.supabase_url, CONFIG.supabase_anon_key, { auth: { flowType: 'implicit', detectSessionInUrl: true, persistSession: true } })
+  : null;
+const SERVER = !!(CONFIG && CONFIG.supabase_url);
+let ME = null;   // профиль вошедшего: { user_id, email, full_name, role }
+
+/* ---------- состояние: в браузере, у каждого вошедшего своё ---------- */
 let S = { uid: '', name: '', steps: {} };
-try { const raw = localStorage.getItem(KEY); if (raw) S = Object.assign(S, JSON.parse(raw)); } catch (e) {}
-if (!S.uid) S.uid = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2));
+let KEYU = KEY;
+function loadLocal(key) {
+  KEYU = key; S = { uid: '', name: '', steps: {} };
+  try { const raw = localStorage.getItem(key); if (raw) S = Object.assign(S, JSON.parse(raw)); } catch (e) {}
+}
+if (!SERVER) { loadLocal(KEY); if (!S.uid) S.uid = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2)); }
 let saveWarned = false;
 function save() {
-  try { localStorage.setItem(KEY, JSON.stringify(S)); }
+  try { localStorage.setItem(KEYU, JSON.stringify(S)); }
   catch (e) { if (!saveWarned) { saveWarned = true; toast('Браузер не даёт сохранять прогресс. Сохраняйте его в файл через меню ⋯'); } }
 }
 const rec = id => (S.steps[id] = S.steps[id] || {});
 
-// Точки связи с сервером. Сейчас всё хранится локально; на этапе 2 здесь появятся вызовы Supabase:
-// issue → insert в datasets_issued (время выдачи ставит сервер), submit → insert в submissions.
+// понятный текст ошибки сервера
+function errText(e) {
+  const m = (e && (e.message || e.error_description || e.msg)) || String(e);
+  if (/Database error saving new user|не входит в список группы/i.test(m)) return 'эта почта не входит в список группы — обратитесь к преподавателю';
+  if (e && (e.code === 'PT429' || e.status === 429) || /rate limit|too many/i.test(m)) return 'слишком часто — подождите минуту и попробуйте снова';
+  if (/Failed to fetch|NetworkError|Load failed/i.test(m)) return 'нет связи с сервером';
+  return m;
+}
+const isNetwork = e => /Failed to fetch|NetworkError|Load failed|fetch/i.test((e && e.message) || '') && !(e && e.code);
+
+// очередь сдач, которые не ушли из-за сети: отправляются при следующем запуске и после каждой сдачи
+const outboxKey = () => KEYU + '-outbox';
+function outbox() { try { return JSON.parse(localStorage.getItem(outboxKey()) || '[]'); } catch (e) { return []; } }
+function setOutbox(a) { try { localStorage.setItem(outboxKey(), JSON.stringify(a)); } catch (e) {} }
+async function flushOutbox() {
+  if (!sb || !ME) return;
+  const left = [];
+  for (const row of outbox()) {
+    const { error } = await sb.from('submissions').insert(row);
+    if (error && isNetwork(error)) left.push(row);
+  }
+  setOutbox(left);
+}
+
+// Точки связи с сервером. Время выдачи данных и время сдачи ставит сервер (триггеры в lms/supabase/schema.sql).
 const API = {
-  async issue(step, setNo) { return { issued_at: Date.now() }; },
-  async submit(step, kind, payload, prelim, hint) { /* этап 2: сдача уходит на сервер для перепроверки */ },
+  async issue(step, setNo) {
+    if (!sb) return { issued_at: Date.now(), skew: 0 };
+    const t0 = Date.now();
+    const ins = await sb.from('datasets_issued').insert({ step_id: step.id, set_no: setNo }).select('issued_at').single();
+    if (!ins.error) { const at = Date.parse(ins.data.issued_at); return { issued_at: at, skew: at - Math.round((t0 + Date.now()) / 2) }; }
+    if (ins.error.code === '23505') {   // этот набор уже выдан (например, на другом устройстве)
+      const old = await sb.from('datasets_issued').select('issued_at').eq('step_id', step.id).eq('set_no', setNo).single();
+      if (!old.error) return { issued_at: Date.parse(old.data.issued_at), skew: null };
+    }
+    throw new Error(errText(ins.error));
+  },
+  async submit(step, kind, payload, prelim, hint) {
+    if (!sb || !ME) return;
+    const row = { step_id: step.id, kind, payload, prelim_score: prelim, prelim_hint: (hint || '').slice(0, 4000) || null };
+    const { error } = await sb.from('submissions').insert(row);
+    const r = rec(step.id);
+    if (!error) { r.pending = true; save(); refreshChrome(step); flushOutbox(); return; }
+    if (isNetwork(error)) { setOutbox(outbox().concat([row])); r.pending = true; save(); refreshChrome(step); toast('Нет связи с сервером: ответ сохранён и отправится позже'); }
+    else toast('Сервер не принял ответ: ' + errText(error));
+  },
 };
+
+// Прогресс с сервера: сдачи, проверенные баллы, выданные наборы данных. Сервер — главный источник.
+async function pullProgress() {
+  const [subs, scs, iss] = await Promise.all([
+    sb.from('submissions').select('id, step_id, kind, payload, prelim_score, created_at').order('created_at').limit(10000),
+    sb.from('scores').select('submission_id, score').limit(10000),
+    sb.from('datasets_issued').select('step_id, set_no, issued_at').limit(10000)]);
+  for (const x of [subs, scs, iss]) if (x.error) throw x.error;
+  const ver = Object.fromEntries(scs.data.map(x => [x.submission_id, x.score]));
+  const att = {};
+  for (const x of subs.data) {
+    const r = rec(x.step_id);
+    att[x.step_id] = (att[x.step_id] || 0) + 1;
+    r.score = Math.max(r.score || 0, x.prelim_score || 0);
+    if (x.id in ver) r.vscore = Math.max(r.vscore === undefined ? 0 : r.vscore, ver[x.id]);
+    else r.pendingSrv = true;
+    if (x.kind === 'code') { if (r.code === undefined) r.code = x.payload.code; if (x.prelim_score === 1) r.solved = x.payload.code; }
+    if (x.kind === 'dataset' && r.reply === undefined) r.reply = x.payload.reply;
+  }
+  for (const [id, n] of Object.entries(att)) { const r = rec(id); r.att = Math.max(r.att || 0, n); r.pending = !!r.pendingSrv; delete r.pendingSrv; }
+  for (const d of iss.data) {   // последний выданный набор: на другом устройстве данные построятся заново по тому же seed
+    const r = rec(d.step_id);
+    if (d.set_no > (r.set || 0) || (d.set_no === (r.set || 0) && !r.at)) { if (d.set_no !== (r.set || 0)) delete r.ds; r.set = d.set_no; r.at = Date.parse(d.issued_at); }
+  }
+  save();
+}
 
 /* ---------- каталог курса ---------- */
 let CAT = null;            // data/course.json: модули, уроки, шаги (без содержимого)
@@ -269,9 +355,12 @@ function download(name, text) { const a = el('a', { href: URL.createObjectURL(ne
 async function copy(text) { try { await navigator.clipboard.writeText(text); toast('Скопировано'); } catch (e) { toast('Не удалось скопировать — выделите текст вручную'); } }
 
 const TYPE = { text: 'Теория', choice: 'Тест', number: 'Числовой ответ', matching: 'Сопоставление', parsons: 'Собрать код', dataset: 'Задача на данные', code: 'Программа' };
-const got = s => s.cost * ((S.steps[s.id] || {}).score || 0);
+// балл для показа: проверенный сервером, а пока есть непроверенные сдачи — лучший из проверенного и предварительного
+const shownScore = r => !r ? 0 : r.vscore === undefined ? (r.score || 0) : r.pending ? Math.max(r.vscore, r.score || 0) : r.vscore;
+const sc = id => shownScore(S.steps[id]);
+const got = s => s.cost * sc(s.id);
 const isTask = s => s.t !== 'text';
-function lessonStat(l) { let g = 0, m = 0, done = 0, n = 0; l.steps.forEach(s => { if (!isTask(s)) return; n++; g += got(s); m += s.cost; if ((S.steps[s.id] || {}).score === 1) done++; }); return { g, m, done, n }; }
+function lessonStat(l) { let g = 0, m = 0, done = 0, n = 0; l.steps.forEach(s => { if (!isTask(s)) return; n++; g += got(s); m += s.cost; if (sc(s.id) === 1) done++; }); return { g, m, done, n }; }
 function modStat(M) { let g = 0, m = 0; M.lessons.forEach(l => { const t = lessonStat(l); g += t.g; m += t.m; }); return { g, m }; }
 const totalGot = () => Object.values(STEPMETA).reduce((a, s) => a + got(s), 0);
 
@@ -612,7 +701,8 @@ R.dataset = (s, root) => {
   const timer = el('span', { class: 'timer' });
   const box = el('div', { class: 'result', hidden: '' });
   const seed = () => S.uid + '|' + s.id + '|' + (r.set || 0);   // общий контракт с перепроверкой (lms/grader)
-  const left = () => r.at ? DS_LIMIT - (Date.now() - r.at) : 0;
+  // время считается от выдачи на сервере; skew — поправка на расхождение часов компьютера с сервером
+  const left = () => r.at ? DS_LIMIT - (Date.now() + (r.skew || 0) - r.at) : 0;
   let tick = null;
   const paintTimer = () => {
     const ms = left();
@@ -635,10 +725,10 @@ R.dataset = (s, root) => {
   const fetchDs = async () => {
     getBtn.disabled = true;
     try {
-      if (r.ds !== undefined) { r.set = (r.set || 0) + 1; delete r.ds; inp.value = ''; box.hidden = true; }
+      if (r.ds !== undefined || r.at) { r.set = (r.set || 0) + 1; delete r.ds; delete r.at; inp.value = ''; box.hidden = true; }
       const ds = await py('ds_get', [s.src, seed()]);
       const iss = await API.issue(s, r.set || 0);
-      r.ds = ds; r.at = iss.issued_at; save(); show();
+      r.ds = ds; r.at = iss.issued_at; if (iss.skew !== null) r.skew = iss.skew; save(); show();
       download(s.id + '.txt', ds);
     } catch (e) { toast('Не получилось: ' + (e.timeout ? 'превышено время' : 'Python не загрузился')); }
     getBtn.disabled = false;
@@ -662,6 +752,8 @@ R.dataset = (s, root) => {
   root.querySelectorAll('.actions')[0].append(getBtn);
   root.querySelectorAll('.actions')[1].append(send);
   show();
+  // набор выдан на другом устройстве: данные строятся заново по тому же seed, новая выдача не нужна
+  if (r.at && r.ds === undefined) py('ds_get', [s.src, seed()]).then(ds => { r.ds = ds; save(); show(); }).catch(() => {});
 };
 
 function makeEditor(host, value, onChange) {
@@ -743,13 +835,17 @@ R.code = (s, root) => {
 };
 
 /* ---------- экраны ---------- */
-function badgeText(s) { const g = got(s); return s.cost ? fmt(g) + ' из ' + ofBalls(s.cost) : (S.steps[s.id] || {}).score ? 'выполнено' : 'без баллов'; }
+function badgeText(s) {
+  const g = got(s), r = S.steps[s.id] || {};
+  const t = s.cost ? fmt(g) + ' из ' + ofBalls(s.cost) : sc(s.id) ? 'выполнено' : 'без баллов';
+  return t + (SERVER && r.att ? (r.pending ? ' · ждёт проверки' : r.vscore !== undefined ? ' · проверено' : '') : '');
+}
 function refreshChrome(s) {
   $('#score').innerHTML = (S.name ? '<span class="nm">' + esc(S.name) + ' · </span>' : '') + '<b>' + fmt(totalGot()) + '</b> из ' + CAT.total;
   drawSide();
   if (s) {
     const r = S.steps[s.id] || {}, b = $('#badge-' + s.id), a = $('#sb-' + s.id);
-    const cls = !r.score ? '' : r.score === 1 ? 'full' : 'part';
+    const v = sc(s.id), cls = !v ? '' : v === 1 ? 'full' : 'part';
     if (b) { b.className = 'badge ' + cls; b.textContent = badgeText(s); }
     if (a) a.className = 'task ' + cls;
   }
@@ -814,7 +910,7 @@ async function lesson(l) {
   m.appendChild(el('h1', { class: 'lesson-h' }, esc(l.title)));
   const bar = el('div', { class: 'stepbar' });
   l.steps.forEach(s => {
-    const r = S.steps[s.id] || {}, cls = (isTask(s) ? 'task ' : '') + (!r.score ? '' : r.score === 1 ? 'full' : 'part');
+    const v = sc(s.id), cls = (isTask(s) ? 'task ' : '') + (!v ? '' : v === 1 ? 'full' : 'part');
     bar.appendChild(el('a', { id: 'sb-' + s.id, class: cls, href: 'javascript:void 0', title: (TYPE[s.t] || '') + ': ' + s.title,
       on: { click: () => document.getElementById('st' + s.id).scrollIntoView({ behavior: 'smooth' }) } }, s.num));
   });
@@ -824,7 +920,7 @@ async function lesson(l) {
     s.cost = meta.cost;
     const card = el('section', { class: 'step', id: 'st' + s.id });
     const h = el('div', { class: 'step-h' }, '<span>Шаг ' + meta.num + ' · ' + TYPE[s.t] + '</span>');
-    if (isTask(s)) { const r = S.steps[s.id] || {}; h.appendChild(el('span', { id: 'badge-' + s.id, class: 'badge ' + (!r.score ? '' : r.score === 1 ? 'full' : 'part') }, badgeText(s))); }
+    if (isTask(s)) { const v = sc(s.id); h.appendChild(el('span', { id: 'badge-' + s.id, class: 'badge ' + (!v ? '' : v === 1 ? 'full' : 'part') }, badgeText(s))); }
     card.append(h, el('div', { class: 'body' }, s.html));
     if (R[s.t]) R[s.t](s, card);
     m.appendChild(card);
@@ -840,7 +936,198 @@ async function lesson(l) {
 function route() {
   document.body.classList.remove('nav-open');
   const k = location.hash.slice(1), l = LESSONS.find(x => x.key === k);
+  if (k.startsWith('teacher')) return ME && ME.role === 'teacher' ? teacher(k.split('/')[1]) : home();
   l ? lesson(l) : home();
+}
+
+/* ---------- вход по почте (magic link) ---------- */
+function loginScreen(msg) {
+  $('#side').innerHTML = '';
+  const m = $('#main'); m.innerHTML = '';
+  const box = el('div', { class: 'hero', style: 'max-width:560px' },
+    '<h1>МОБАК — вход</h1><p>Введите почту, которую вы дали преподавателю. На неё придёт письмо со ссылкой для входа — откройте её, и вы окажетесь в курсе. Пароль не нужен.</p>');
+  const inp = el('input', { type: 'email', class: 'answer', placeholder: 'почта@пример.ru', autocomplete: 'email' });
+  const btn = el('button', { class: 'primary' }, 'Получить ссылку для входа');
+  const res = el('div', { class: 'result', hidden: '' });
+  if (msg) { res.className = 'result bad'; res.textContent = msg; res.hidden = false; }
+  const go = async () => {
+    const email = inp.value.trim().toLowerCase();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return toast('Введите почту');
+    btn.disabled = true; btn.textContent = 'Отправляем…';
+    const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: location.origin + location.pathname, shouldCreateUser: true } });
+    btn.disabled = false; btn.textContent = 'Получить ссылку для входа';
+    res.hidden = false;
+    if (error) { res.className = 'result bad'; res.textContent = 'Не получилось: ' + errText(error) + '.'; return; }
+    res.className = 'result ok';
+    res.innerHTML = '<div class="ttl">Письмо отправлено на ' + esc(email) + '</div>Откройте ссылку из письма. Письма нет несколько минут — проверьте «Спам» и «Промоакции».';
+  };
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
+  btn.addEventListener('click', go);
+  box.append(inp, el('div', { class: 'actions' }), res); $('.actions', box).append(btn);
+  m.appendChild(box);
+  $('#score').textContent = '';
+}
+
+// ошибка из ссылки входа (например, ссылка устарела) приходит в адресе после #
+function authErrorFromUrl() {
+  const p = new URLSearchParams(location.hash.slice(1));
+  if (!p.get('error') && !p.get('error_code')) return '';
+  history.replaceState(null, '', location.pathname + location.search);
+  return p.get('error_code') === 'otp_expired' ? 'Ссылка для входа устарела или уже использована. Запросите новую.' : 'Вход не удался: ' + (p.get('error_description') || p.get('error'));
+}
+
+/* ---------- страницы преподавателя ---------- */
+const WEIGHTS = (CONFIG && CONFIG.weights) || { week: 10, prac: 10, lab: 40, ctrl: 20, final: 15, test: 5 };
+// категория шага по названию урока — то же правило, что category() в stepik/teacher/weekly_report.py
+function category(lesson) {
+  if (lesson.startsWith('Итоговый тест')) return 'test';
+  if (/КТ-\d|Входная/.test(lesson)) return 'ctrl';
+  if (lesson.startsWith('ЛР-')) return 'lab';
+  if (/^П\d/.test(lesson)) return 'prac';
+  if (lesson.startsWith('Итоговая работа')) return 'final';
+  return 'week';
+}
+const CAT_NAMES = { week: 'Задачи недели', prac: 'Практики', lab: 'ЛР', ctrl: 'КТ', final: 'Итоговая работа', test: 'Итоговый тест' };
+let TD = null;   // данные ведомости: roster, profiles, best (v_best), deadlines
+async function teacherData(force) {
+  if (TD && !force) return TD;
+  const q = (t, cols) => sb.from(t).select(cols).limit(100000);
+  const [ro, pr, vb, dl, ex] = await Promise.all([q('roster', '*'), q('profiles', '*'), q('v_best', '*'), q('deadlines', '*'), q('extensions', '*')]);
+  for (const x of [ro, pr, vb, dl, ex]) if (x.error) throw x.error;
+  TD = { roster: ro.data, profiles: pr.data, best: vb.data, deadlines: dl.data, ext: ex.data };
+  return TD;
+}
+function rating(bestByStep) {
+  // вес категории × доля баллов категории, набранных в срок (как rating() в weekly_report.py)
+  const got = {}, max = {};
+  Object.values(STEPMETA).forEach(s => {
+    if (!s.cost) return;
+    const c = category(s.lesson.title); max[c] = (max[c] || 0) + s.cost;
+    const b = bestByStep[s.id]; if (b) got[c] = (got[c] || 0) + s.cost * (b.best_on_time || 0);
+  });
+  return Object.keys(WEIGHTS).reduce((a, c) => a + (max[c] ? WEIGHTS[c] * (got[c] || 0) / max[c] : 0), 0);
+}
+function studentRows(td) {
+  const prof = Object.fromEntries(td.profiles.map(p => [p.email, p]));
+  return td.roster.filter(r => r.role === 'student').map(r => {
+    const p = prof[r.email], best = {};
+    if (p) td.best.filter(b => b.user_id === p.user_id).forEach(b => { best[b.step_id] = b; });
+    const mods = CAT.modules.map(M => M.lessons.reduce((a, l) => a + l.steps.reduce((x, s) => x + s.cost * ((best[s.id] || {}).best_on_time || 0), 0), 0));
+    const late = Object.values(best).reduce((a, b) => a + (b.best_late && !b.best_on_time ? 1 : 0), 0);
+    const last = Object.values(best).reduce((a, b) => (b.last_at > a ? b.last_at : a), '');
+    const pend = Object.values(best).reduce((a, b) => a + (b.attempts - b.verified), 0);
+    return { r, p, best, mods, total: mods.reduce((a, x) => a + x, 0), rating: rating(best), late, last, pend };
+  }).sort((a, b) => a.r.full_name.localeCompare(b.r.full_name, 'ru'));
+}
+const fmtDate = t => t ? new Date(t).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
+
+async function teacher(uid) {
+  CUR = null; drawSide();
+  const m = $('#main'); m.innerHTML = '<div class="loading">Загрузка ведомости…</div>';
+  let td;
+  try { td = await teacherData(!uid); } catch (e) { m.innerHTML = '<div class="result bad">Не удалось загрузить ведомость: ' + esc(errText(e)) + '</div>'; return; }
+  const rows = studentRows(td);
+  m.innerHTML = '';
+  if (uid) return teacherStudent(m, rows.find(x => x.p && x.p.user_id === uid), td);
+  const joined = rows.filter(x => x.p).length;
+  m.appendChild(el('h1', { class: 'lesson-h' }, 'Ведомость'));
+  m.appendChild(el('p', { class: 'small' }, 'Студентов в списке: ' + rows.length + ', вошли на сайт: ' + joined +
+    '. Баллы — проверенные сервером и сданные в срок; рейтинг — из 100 по весам ' + Object.entries(WEIGHTS).map(([c, w]) => CAT_NAMES[c] + ' ' + w).join(', ') + '.'));
+  const acts = el('div', { class: 'actions' });
+  acts.append(el('button', { class: 'primary', on: { click: () => teacher() } }, 'Обновить'),
+    el('button', { on: { click: () => csv(rows) } }, 'Скачать CSV'),
+    el('button', { on: { click: () => addStudents() } }, 'Добавить студентов'),
+    el('button', { on: { click: () => extendForm(rows) } }, 'Продлить срок'));
+  m.appendChild(acts);
+  const t = el('table', { class: 'grade' });
+  t.innerHTML = '<tr><th>Студент</th><th>Группа</th>' + CAT.modules.map(M => '<th title="' + esc(M.title) + '">' + (M.n === 15 ? 'И' : M.n) + '</th>').join('') +
+    '<th>Баллы</th><th>Рейтинг</th><th>Ждут проверки</th><th>Последняя сдача</th></tr>' +
+    rows.map(x => '<tr><td>' + (x.p ? '<a href="#teacher/' + x.p.user_id + '">' + esc(x.r.full_name) + '</a>' : esc(x.r.full_name) + ' <span class="small">(не входил)</span>') + '</td><td>' + esc(x.r.group_name || '') + '</td>' +
+      x.mods.map(v => '<td>' + (v ? fmt(v) : '') + '</td>').join('') + '<td><b>' + fmt(x.total) + '</b></td><td><b>' + fmt(x.rating) + '</b></td><td>' + (x.pend || '') + '</td><td>' + fmtDate(x.last) + '</td></tr>').join('');
+  m.appendChild(el('div', { style: 'overflow-x:auto' })).appendChild(t);
+  m.appendChild(el('p', { class: 'small' }, 'Максимум по модулям: ' + CAT.modules.map(M => (M.n === 15 ? 'И' : M.n) + ' — ' + modStat(M).m).join(', ') + '.'));
+}
+
+function teacherStudent(m, x, td) {
+  if (!x) { m.innerHTML = '<div class="result bad">Студент не найден.</div>'; return; }
+  m.appendChild(el('div', { class: 'crumbs' }, '<a href="#teacher">← Ведомость</a>'));
+  m.appendChild(el('h1', { class: 'lesson-h' }, esc(x.r.full_name)));
+  m.appendChild(el('p', { class: 'small' }, esc(x.r.email) + ' · баллы в срок ' + fmt(x.total) + ' из ' + CAT.total + ' · рейтинг ' + fmt(x.rating) + ' из 100'));
+  CAT.modules.forEach(M => {
+    const tasks = M.lessons.flatMap(l => l.steps.filter(s => isTask(s)).map(s => [l, s]));
+    const done = tasks.filter(([, s]) => x.best[s.id]);
+    const det = el('details', { class: 'step' }, '<summary><b>' + esc(M.label) + '</b> — ' + fmt(x.mods[M.n - 1]) + ' из ' + modStat(M).m + ' · сдано шагов ' + done.length + ' из ' + tasks.length + '</summary>');
+    const t = el('table');
+    t.innerHTML = '<tr><th>Урок · шаг</th><th>Баллы</th><th>В срок</th><th>После срока</th><th>Попыток</th><th>Последняя</th><th></th></tr>' +
+      tasks.map(([l, s]) => { const b = x.best[s.id]; return '<tr><td>' + esc(l.title) + ' · ' + s.num + ' ' + esc(s.title) + '</td><td>' + s.cost + '</td><td>' + (b && b.best_on_time !== null ? fmt(b.best_on_time * s.cost) : '') + '</td><td>' + (b && b.best_late !== null ? fmt(b.best_late * s.cost) : '') + '</td><td>' + (b ? b.attempts + (b.attempts > b.verified ? ' (ждут ' + (b.attempts - b.verified) + ')' : '') : '') + '</td><td>' + (b ? fmtDate(b.last_at) : '') + '</td><td>' + (b ? '<button class="link" data-s="' + s.id + '">ответ</button>' : '') + '</td></tr>'; }).join('');
+    t.querySelectorAll('button[data-s]').forEach(bt => bt.onclick = () => showAnswer(x, +bt.dataset.s));
+    det.appendChild(el('div', { style: 'overflow-x:auto' })).appendChild(t);
+    m.appendChild(det);
+  });
+}
+
+async function showAnswer(x, stepId) {
+  const { data, error } = await sb.from('submissions').select('id, payload, prelim_score, created_at, kind').eq('user_id', x.p.user_id).eq('step_id', stepId).order('created_at', { ascending: false }).limit(20);
+  if (error) return toast(errText(error));
+  const ids = data.map(d => d.id), scs = ids.length ? (await sb.from('scores').select('submission_id, score, hint').in('submission_id', ids)).data || [] : [];
+  const ver = Object.fromEntries(scs.map(v => [v.submission_id, v]));
+  const s = STEPMETA[stepId];
+  const md = el('div', { class: 'modal' });
+  md.innerHTML = '<div class="box wide"><h2>' + esc(x.r.full_name) + ' · ' + esc(s.lesson.title) + ', шаг ' + s.num + '</h2>' +
+    data.map(d => '<div class="small">' + fmtDate(d.created_at) + ' · предварительно ' + (d.prelim_score === null ? '—' : fmt(d.prelim_score * s.cost)) + ' · сервер ' + (ver[d.id] ? fmt(ver[d.id].score * s.cost) + (ver[d.id].hint ? ' (' + esc(ver[d.id].hint) + ')' : '') : 'ещё не проверено') + '</div>' +
+      '<pre>' + esc(d.kind === 'code' ? d.payload.code : JSON.stringify(d.payload, null, 1)) + '</pre>').join('') +
+    '<div class="actions"><button class="primary" id="ansX">Закрыть</button></div></div>';
+  document.body.appendChild(md);
+  $('#ansX', md).onclick = () => md.remove();
+  md.addEventListener('click', e => { if (e.target === md) md.remove(); });
+}
+
+function csv(rows) {
+  const q = v => '"' + String(v).replace(/"/g, '""') + '"';
+  const head = ['ФИО', 'Почта', 'Группа', ...CAT.modules.map(M => M.label), 'Баллы в срок', 'Рейтинг из 100', 'Ждут проверки', 'Последняя сдача'];
+  const lines = [head.map(q).join(';')].concat(rows.map(x => [x.r.full_name, x.r.email, x.r.group_name || '', ...x.mods.map(v => fmt(v)), fmt(x.total), fmt(x.rating), x.pend, x.last ? fmtDate(x.last) : ''].map(q).join(';')));
+  const a = el('a', { href: URL.createObjectURL(new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' })), download: 'МОБАК_ведомость_' + new Date().toISOString().slice(0, 10) + '.csv' });
+  document.body.appendChild(a); a.click(); a.remove();
+}
+
+function addStudents() {
+  const md = el('div', { class: 'modal' });
+  md.innerHTML = '<div class="box wide"><h2>Добавить студентов</h2><p class="small">По одному в строке: <code>Фамилия Имя; почта; группа</code> (группу можно не указывать). Уже добавленные почты обновятся.</p>' +
+    '<textarea id="stIn" placeholder="Иванов Иван; ivanov@example.com; ИБ-1-24"></textarea><div class="result" hidden id="stRes"></div>' +
+    '<div class="actions"><button class="primary" id="stOk">Добавить</button><button id="stX">Закрыть</button></div></div>';
+  document.body.appendChild(md);
+  $('#stX', md).onclick = () => md.remove();
+  $('#stOk', md).onclick = async () => {
+    const rows = [], bad = [];
+    $('#stIn', md).value.split('\n').map(l => l.trim()).filter(Boolean).forEach(l => {
+      const [name, email, group] = l.split(/[;\t]/).map(x => (x || '').trim());
+      if (!name || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email || '')) bad.push(l); else rows.push({ full_name: name, email: email.toLowerCase(), group_name: group || null, role: 'student' });
+    });
+    const res = $('#stRes', md); res.hidden = false;
+    if (bad.length) { res.className = 'result bad'; res.textContent = 'Не разобраны строки:\n' + bad.join('\n'); return; }
+    const { error } = await sb.from('roster').upsert(rows, { onConflict: 'email' });
+    if (error) { res.className = 'result bad'; res.textContent = errText(error); return; }
+    res.className = 'result ok'; res.textContent = 'Добавлено: ' + rows.length + '. Теперь они могут войти по своей почте.';
+    TD = null;
+  };
+}
+
+function extendForm(rows) {
+  const md = el('div', { class: 'modal' });
+  const st = rows.filter(x => x.p).map(x => '<option value="' + x.p.user_id + '">' + esc(x.r.full_name) + '</option>').join('');
+  const mods = CAT.modules.map(M => '<option value="' + M.sectionId + '">' + esc(M.label) + '</option>').join('');
+  md.innerHTML = '<div class="box"><h2>Продлить срок</h2><p class="small">Сдачи до новой даты засчитываются как сданные в срок; для КТ продление снимает ограничение окна пары.</p>' +
+    '<p>Студент <select id="exU">' + st + '</select></p><p>Модуль <select id="exM">' + mods + '</select></p><p>Новый срок <input type="datetime-local" id="exD"></p>' +
+    '<div class="result" hidden id="exRes"></div><div class="actions"><button class="primary" id="exOk">Сохранить</button><button id="exX">Закрыть</button></div></div>';
+  document.body.appendChild(md);
+  $('#exX', md).onclick = () => md.remove();
+  $('#exOk', md).onclick = async () => {
+    const d = $('#exD', md).value, res = $('#exRes', md); res.hidden = false;
+    if (!d) { res.className = 'result bad'; res.textContent = 'Укажите дату'; return; }
+    const { error } = await sb.from('extensions').upsert({ user_id: $('#exU', md).value, section_id: +$('#exM', md).value, due_at: new Date(d).toISOString() }, { onConflict: 'user_id,section_id' });
+    res.className = 'result ' + (error ? 'bad' : 'ok'); res.textContent = error ? errText(error) : 'Срок продлён.';
+    TD = null;
+  };
 }
 
 /* ---------- имя, отчёт, меню ---------- */
@@ -871,7 +1158,7 @@ function report() {
     L.push('== ' + M.title + ' — ' + fmt(ms.g) + ' из ' + ms.m);
     M.lessons.forEach(l => l.steps.forEach(s => {
       if (!isTask(s) || !s.cost) return;
-      const r = S.steps[s.id] || {}, mark = r.score === 1 ? '[+]' : r.score > 0 ? '[~]' : r.att ? '[-]' : '[ ]';
+      const r = S.steps[s.id] || {}, v = sc(s.id), mark = v === 1 ? '[+]' : v > 0 ? '[~]' : r.att ? '[-]' : '[ ]';
       L.push('  ' + mark + ' ' + fmt(got(s)) + '/' + s.cost + '  ' + l.title + ' — ' + s.title + (r.att ? '  (попыток: ' + r.att + ')' : ''));
     }));
     L.push('');
@@ -897,13 +1184,18 @@ function menu() {
   if ($('.menu')) return $('.menu').remove();
   const mn = el('div', { class: 'menu' });
   const item = (t, fn) => mn.appendChild(el('button', { on: { click: () => { mn.remove(); fn(); } } }, t));
-  item('Сменить имя', () => askName(true));
-  item('Сохранить прогресс в файл', () => download('МОБАК_прогресс_' + S.name.replace(/[^\p{L}\p{N}]+/gu, '_') + '.json', JSON.stringify(S)));
-  item('Загрузить прогресс из файла', () => {
-    const f = el('input', { type: 'file', accept: '.json,application/json' });
-    f.onchange = async () => { try { const o = JSON.parse(await f.files[0].text()); if (!o.steps || !o.uid) throw 0; S = Object.assign({ uid: '', name: '', steps: {} }, o); save(); refreshChrome(); route(); toast('Прогресс загружен'); } catch (e) { toast('Это не файл прогресса'); } };
-    f.click();
-  });
+  if (SERVER) {
+    if (ME && ME.role === 'teacher') item('Ведомость', () => { location.hash = 'teacher'; });
+    if (ME) item('Выйти (' + ME.email + ')', async () => { await sb.auth.signOut(); location.hash = ''; location.reload(); });
+  } else {
+    item('Сменить имя', () => askName(true));
+    item('Сохранить прогресс в файл', () => download('МОБАК_прогресс_' + S.name.replace(/[^\p{L}\p{N}]+/gu, '_') + '.json', JSON.stringify(S)));
+    item('Загрузить прогресс из файла', () => {
+      const f = el('input', { type: 'file', accept: '.json,application/json' });
+      f.onchange = async () => { try { const o = JSON.parse(await f.files[0].text()); if (!o.steps || !o.uid) throw 0; S = Object.assign({ uid: '', name: '', steps: {} }, o); save(); refreshChrome(); route(); toast('Прогресс загружен'); } catch (e) { toast('Это не файл прогресса'); } };
+      f.click();
+    });
+  }
   item('Тема: светлая / тёмная', () => { const cur = document.documentElement.dataset.theme; const dark = cur ? cur === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches; document.documentElement.dataset.theme = dark ? 'light' : 'dark'; try { localStorage.setItem(KEY + '-theme', document.documentElement.dataset.theme); } catch (e) {} });
   document.body.appendChild(mn);
   setTimeout(() => document.addEventListener('click', function off(e) { if (!mn.contains(e.target)) { mn.remove(); document.removeEventListener('click', off); } }), 0);
@@ -918,9 +1210,32 @@ $('#moreBtn').onclick = menu;
 (async () => {
   try { await loadCatalog(); }
   catch (e) { $('#main').innerHTML = '<div class="result bad">Не удалось загрузить курс. Проверьте интернет и обновите страницу.</div>'; return; }
+  if (!SERVER) {
+    save();
+    window.addEventListener('hashchange', route);
+    refreshChrome(); route(); askName();
+    return;
+  }
+  if (!sb) { $('#main').innerHTML = '<div class="result bad">Не загрузилась библиотека входа. Проверьте интернет и обновите страницу.</div>'; return; }
+  $('#reportBtn').hidden = true;   // на платформе ведомость у преподавателя, отчёт файлом не нужен
+  const urlErr = authErrorFromUrl();
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) return loginScreen(urlErr);
+  if (/access_token|refresh_token/.test(location.hash)) history.replaceState(null, '', location.pathname + location.search);
+  const { data: prof, error } = await sb.from('profiles').select('user_id, email, full_name, role').eq('user_id', session.user.id).maybeSingle();
+  if (error || !prof || !prof.role) {
+    await sb.auth.signOut();
+    return loginScreen(error ? 'Не удалось загрузить профиль: ' + errText(error) : 'Эта почта не входит в список группы — обратитесь к преподавателю.');
+  }
+  ME = prof;
+  loadLocal(KEY + ':' + ME.user_id);
+  S.uid = ME.user_id; S.name = ME.full_name || ME.email;   // uid — seed личных данных (общий с перепроверкой)
+  if (ME.role === 'teacher') { const b = el('button', { class: 'primary', on: { click: () => { location.hash = 'teacher'; } } }, 'Ведомость'); $('#reportBtn').after(b); }
+  try { await flushOutbox(); await pullProgress(); } catch (e) { toast('Прогресс с сервера не загрузился: ' + errText(e)); }
   save();
   window.addEventListener('hashchange', route);
-  refreshChrome(); route(); askName();
+  refreshChrome(); route();
+  sb.auth.onAuthStateChange(ev => { if (ev === 'SIGNED_OUT') location.reload(); });
 })();
 </script>
 </body>
