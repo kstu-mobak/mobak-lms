@@ -33,6 +33,8 @@ code, pre, .mono { font-family: ui-monospace, "Cascadia Mono", Consolas, "Libera
 code { background: var(--code-bg); padding: .08em .3em; border-radius: 4px; }
 pre { background: var(--code-bg); padding: 10px 12px; border-radius: 8px; overflow-x: auto; border: 1px solid var(--line); }
 pre code { background: none; padding: 0; }
+/* длинные фрагменты кода в тексте переносятся, а не растягивают страницу на узком экране */
+:not(pre) > code, .step .body, .pager button, .result { overflow-wrap: anywhere; }
 table { border-collapse: collapse; margin: 8px 0; display: block; overflow-x: auto; }
 th, td { border: 1px solid var(--line); padding: 4px 10px; text-align: left; vertical-align: top; }
 th { background: var(--panel2); }
@@ -66,14 +68,19 @@ nav.side { border-right: 1px solid var(--line); background: var(--panel); paddin
 .side a.ls .dot { flex: none; width: 10px; height: 10px; border-radius: 50%; margin-top: 5px; border: 2px solid var(--line); }
 .side a.ls .dot.part { border-color: var(--warn); background: var(--warn-soft); }
 .side a.ls .dot.full { border-color: var(--ok); background: var(--ok); }
-main { padding: 24px 32px 80px; max-width: 920px; width: 100%; }
+main { padding: 24px 32px 80px; max-width: 920px; width: 100%; min-width: 0; }
 @media (max-width: 860px) {
-  .layout { grid-template-columns: 1fr; }
+  .layout { grid-template-columns: minmax(0, 1fr); }  /* minmax: иначе длинная строка в pre растягивает всю страницу */
   nav.side { position: fixed; left: 0; top: 57px; width: min(320px, 88vw); z-index: 30; transform: translateX(-105%); transition: transform .2s; box-shadow: var(--shadow); }
   body.nav-open nav.side { transform: none; }
   .menu-btn { display: inline-block; }
   main { padding: 16px 16px 80px; }
   .top .brand small, .top .hide-sm { display: none; }
+}
+@media (max-width: 520px) {
+  .top { gap: 6px; padding: 8px 10px; }
+  .top .score .nm { display: none; }  /* на телефоне шапка не вмещает имя: остаются баллы */
+  .top button { padding: 6px 10px; }
 }
 
 /* главная */
@@ -131,10 +138,10 @@ main { padding: 24px 32px 80px; max-width: 920px; width: 100%; }
 .parsons li button { padding: 2px 8px; font-size: 13px; }
 .dataset pre { max-height: 260px; overflow: auto; }
 .answer { width: 100%; }
-.io { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 10px 0; }
+.io { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; margin: 10px 0; }
 .io > div > div { font-size: 13px; color: var(--muted); margin-bottom: 2px; }
 .io pre { margin: 0; white-space: pre-wrap; }
-@media (max-width: 600px) { .io { grid-template-columns: 1fr; } }
+@media (max-width: 600px) { .io { grid-template-columns: minmax(0, 1fr); } .step { padding: 14px 14px; } main { padding: 12px 10px 80px; } }
 .editor { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; margin-top: 10px; }
 .editor textarea { width: 100%; min-height: 200px; border: none; border-radius: 0; background: var(--code-bg); font-family: ui-monospace, Consolas, monospace; font-size: 14.5px; tab-size: 4; resize: vertical; }
 .CodeMirror { height: auto; min-height: 180px; font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 14.5px; background: var(--code-bg); color: var(--text); }
@@ -738,7 +745,7 @@ R.code = (s, root) => {
 /* ---------- экраны ---------- */
 function badgeText(s) { const g = got(s); return s.cost ? fmt(g) + ' из ' + ofBalls(s.cost) : (S.steps[s.id] || {}).score ? 'выполнено' : 'без баллов'; }
 function refreshChrome(s) {
-  $('#score').innerHTML = (S.name ? esc(S.name) + ' · ' : '') + '<b>' + fmt(totalGot()) + '</b> из ' + CAT.total;
+  $('#score').innerHTML = (S.name ? '<span class="nm">' + esc(S.name) + ' · </span>' : '') + '<b>' + fmt(totalGot()) + '</b> из ' + CAT.total;
   drawSide();
   if (s) {
     const r = S.steps[s.id] || {}, b = $('#badge-' + s.id), a = $('#sb-' + s.id);
