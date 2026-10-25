@@ -300,6 +300,17 @@ table.grade th { position: sticky; top: 0; font-size: 12.5px; color: var(--muted
 table.grade td:first-child { white-space: normal; min-width: 180px; }
 table.grade td:not(:first-child):not(:nth-child(2)) { text-align: right; font-variant-numeric: tabular-nums; }
 table.grade tr:hover td { background: var(--panel2); }
+table.grade.dl td:not(:first-child) { text-align: left; }
+table.grade.dl input { font-size: 14px; padding: 5px 8px; }
+table.grade.dl .src, table.grade.hist td { white-space: normal; }
+.filters { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; margin: 10px 0; }
+.filters label { display: inline-flex; gap: 8px; align-items: center; font-size: 14px; color: var(--muted); }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin: 16px 0 8px; }
+.tile { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; }
+.tile b { font: 700 24px/1.15 var(--display); font-variant-numeric: tabular-nums; }
+.tile span { font-size: 13.5px; color: var(--muted); }
+.badge.late { background: var(--bad-soft); color: var(--bad); }
+#main > h2 { margin-top: 26px; margin-bottom: 10px; font: 700 19px/1.3 var(--display); }
 .step > summary { cursor: pointer; padding: 2px 0; }
 .step[open] > summary { margin-bottom: 10px; }
 /* экран входа: без меню курса, форма по центру */
@@ -689,6 +700,8 @@ function errText(e) {
   if (/Database error saving new user|не входит в список группы/i.test(m)) return 'эта почта не входит в список группы — обратитесь к преподавателю';
   if (e && (e.code === 'PT429' || e.status === 429) || /rate limit|too many/i.test(m)) return 'слишком часто — подождите минуту и попробуйте снова';
   if (/Failed to fetch|NetworkError|Load failed/i.test(m)) return 'нет связи с сервером';
+  if (/row-level security|permission denied/i.test(m)) return 'нет прав на это действие (чужая группа или нужна роль руководителя курса)';
+  if (/roster_group_name_fkey/.test(m)) return 'такой группы нет — её создаёт руководитель курса';
   return m;
 }
 const isNetwork = e => /Failed to fetch|NetworkError|Load failed|fetch/i.test((e && e.message) || '') && !(e && e.code);
@@ -1566,7 +1579,8 @@ function lessonDone(l) {
 function route() {
   document.body.classList.remove('nav-open');
   const k = location.hash.slice(1), [lk, sn] = k.split('/'), l = LESSONS.find(x => x.key === lk);
-  if (k.startsWith('teacher')) { CUR = null; STEP = 0; $('#main').className = ''; return ME && ME.role === 'teacher' ? teacher(k.split('/')[1]) : home(); }
+  if (k.startsWith('teacher')) { CUR = null; STEP = 0; $('#main').className = ''; return isStaff() ? teacher(k.split('/')[1]) : home(); }
+  if (k === 'me') { STEP = 0; return ME ? cabinet() : home(); }
   if (l && CUR === l && $('#main section.step') && sn) return goStep(+sn);
   l ? lesson(l, sn ? +sn : 0) : home();
 }
@@ -1659,25 +1673,30 @@ function category(lesson) {
   return 'week';
 }
 const CAT_NAMES = { week: 'Задачи недели', prac: 'Практики', lab: 'ЛР', ctrl: 'КТ', final: 'Итоговая работа', test: 'Итоговый тест' };
-let TD = null;   // данные ведомости: roster, profiles, best (v_best), deadlines
+// роли: teacher — свои группы (teacher_groups), admin — руководитель курса, всё
+const isStaff = () => !!ME && (ME.role === 'teacher' || ME.role === 'admin');
+const isAdmin = () => !!ME && ME.role === 'admin';
+let TD = null;   // данные ведомости: roster, profiles, best (v_best), сроки, группы — только то, что разрешает RLS
 async function teacherData(force) {
   if (TD && !force) return TD;
-  const q = (t, cols) => sb.from(t).select(cols).limit(100000);
-  const [ro, pr, vb, dl, ex] = await Promise.all([q('roster', '*'), q('profiles', '*'), q('v_best', '*'), q('deadlines', '*'), q('extensions', '*')]);
-  for (const x of [ro, pr, vb, dl, ex]) if (x.error) throw x.error;
-  TD = { roster: ro.data, profiles: pr.data, best: vb.data, deadlines: dl.data, ext: ex.data };
+  const names = ['roster', 'profiles', 'v_best', 'deadlines', 'extensions', 'groups', 'teacher_groups', 'group_deadlines'];
+  const res = await Promise.all(names.map(t => sb.from(t).select('*').limit(100000)));
+  for (const x of res) if (x.error) throw x.error;
+  const [roster, profiles, best, deadlines, ext, groups, tg, gd] = res.map(x => x.data);
+  TD = { roster, profiles, best, deadlines, ext, groups, tg, gd };
   return TD;
 }
-function rating(bestByStep) {
-  // вес категории × доля баллов категории, набранных в срок (как rating() в weekly_report.py)
+// вклад каждой категории в рейтинг: вес × доля баллов категории, набранных в срок (как rating() в weekly_report.py)
+function ratingParts(bestByStep) {
   const got = {}, max = {};
   Object.values(STEPMETA).forEach(s => {
     if (!s.cost) return;
     const c = category(s.lesson.title); max[c] = (max[c] || 0) + s.cost;
     const b = bestByStep[s.id]; if (b) got[c] = (got[c] || 0) + s.cost * (b.best_on_time || 0);
   });
-  return Object.keys(WEIGHTS).reduce((a, c) => a + (max[c] ? WEIGHTS[c] * (got[c] || 0) / max[c] : 0), 0);
+  return Object.keys(WEIGHTS).map(c => ({ c, w: WEIGHTS[c], got: got[c] || 0, max: max[c] || 0, part: max[c] ? WEIGHTS[c] * (got[c] || 0) / max[c] : 0 }));
 }
+const rating = bestByStep => ratingParts(bestByStep).reduce((a, x) => a + x.part, 0);
 function studentRows(td) {
   const prof = Object.fromEntries(td.profiles.map(p => [p.email, p]));
   return td.roster.filter(r => r.role === 'student').map(r => {
@@ -1692,29 +1711,65 @@ function studentRows(td) {
 }
 const fmtDate = t => t ? new Date(t).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
 
-async function teacher(uid) {
+// группы, которые ведёт вошедший: руководителю — все, преподавателю — назначенные; архивные в конце
+function myGroups(td) {
+  const mine = isAdmin() ? td.groups : td.groups.filter(g => td.tg.some(t => t.email === ME.email && t.group_name === g.group_name));
+  return mine.slice().sort((a, b) => (!!a.archived - !!b.archived) || a.group_name.localeCompare(b.group_name, 'ru'));
+}
+// выбранная в ведомости группа (в браузере преподавателя): '' — все текущие группы, '-' — студенты без группы (руководителю)
+const GKEY = () => KEY + '-group';
+function curGroup(td) {
+  let g = ''; try { g = localStorage.getItem(GKEY()) || ''; } catch (e) {}
+  return (g === '-' && isAdmin()) || myGroups(td).some(x => x.group_name === g) ? g : '';
+}
+function setGroup(g) { try { localStorage.setItem(GKEY(), g); } catch (e) {} }
+function groupOptions(groups, cur, extra) {
+  const o = (v, t) => '<option value="' + esc(v) + '"' + (v === cur ? ' selected' : '') + '>' + esc(t) + '</option>';
+  const act = groups.filter(g => !g.archived), arch = groups.filter(g => g.archived);
+  return (extra || []).map(([v, t]) => o(v, t)).join('') + act.map(g => o(g.group_name, g.group_name + (g.term ? ' · ' + g.term : ''))).join('') +
+    (arch.length ? '<optgroup label="Архив">' + arch.map(g => o(g.group_name, g.group_name + (g.term ? ' · ' + g.term : ''))).join('') + '</optgroup>' : '');
+}
+
+async function teacher(sub) {
   CUR = null; drawSide();
   const m = $('#main'); m.innerHTML = '<div class="loading">Загрузка ведомости…</div>';
+  const isUid = /^[0-9a-f-]{36}$/i.test(sub || '');
   let td;
-  try { td = await teacherData(!uid); } catch (e) { m.innerHTML = '<div class="result bad">Не удалось загрузить ведомость: ' + esc(errText(e)) + '</div>'; return; }
-  const rows = studentRows(td);
+  try { td = await teacherData(!isUid); } catch (e) { m.innerHTML = '<div class="result bad">Не удалось загрузить ведомость: ' + esc(errText(e)) + '</div>'; return; }
   m.innerHTML = '';
-  if (uid) return teacherStudent(m, rows.find(x => x.p && x.p.user_id === uid), td);
-  const joined = rows.filter(x => x.p).length;
+  if (sub === 'deadlines') return deadlinesPage(m, td);
+  if (sub === 'groups') return isAdmin() ? groupsPage(m, td) : (location.hash = 'teacher');
+  const rows = studentRows(td);
+  if (isUid) return teacherStudent(m, rows.find(x => x.p && x.p.user_id === sub), td);
+  const mg = myGroups(td), g = curGroup(td);
+  const arch = new Set(td.groups.filter(x => x.archived).map(x => x.group_name));
+  const shown = rows.filter(x => g === '' ? !arch.has(x.r.group_name) : g === '-' ? !x.r.group_name : x.r.group_name === g);
   m.appendChild(el('h1', { class: 'lesson-h' }, 'Ведомость'));
-  m.appendChild(el('p', { class: 'small' }, 'Студентов в списке: ' + rows.length + ', вошли на сайт: ' + joined +
-    '. Баллы — проверенные сервером и сданные в срок; рейтинг — из 100 по весам ' + Object.entries(WEIGHTS).map(([c, w]) => CAT_NAMES[c] + ' ' + w).join(', ') + '.'));
+  if (!isAdmin() && !mg.length) {
+    m.appendChild(el('div', { class: 'result' }, 'Вам пока не назначены группы. Попросите руководителя курса назначить вас преподавателем группы — тогда здесь появятся её студенты.'));
+    return;
+  }
+  const bar = el('div', { class: 'filters' }, '<label>Группа <select id="tgSel">' +
+    groupOptions(mg, g, [['', 'Все текущие группы']].concat(isAdmin() ? [['-', 'Без группы']] : [])) + '</select></label>');
+  $('#tgSel', bar).onchange = e => { setGroup(e.target.value); teacher(); };
+  m.appendChild(bar);
+  const joined = shown.filter(x => x.p).length;
+  m.appendChild(el('p', { class: 'small' }, 'Студентов: ' + shown.length + ', вошли на сайт: ' + joined +
+    '. Баллы — проверенные сервером и сданные в срок группы (с учётом продлений); рейтинг — из 100 по весам ' + Object.entries(WEIGHTS).map(([c, w]) => CAT_NAMES[c] + ' ' + w).join(', ') + '.'));
   const acts = el('div', { class: 'actions' });
   acts.append(el('button', { class: 'primary', on: { click: () => teacher() } }, 'Обновить'),
-    el('button', { on: { click: () => csv(rows) } }, 'Скачать CSV'),
-    el('button', { on: { click: () => addStudents() } }, 'Добавить студентов'),
-    el('button', { on: { click: () => extendForm(rows) } }, 'Продлить срок'));
+    el('button', { on: { click: () => csv(shown, g) } }, 'Скачать CSV'),
+    el('button', { on: { click: () => addStudents(td, g) } }, 'Добавить студентов'),
+    el('button', { on: { click: () => extendForm(shown) } }, 'Продлить срок'),
+    el('button', { on: { click: () => { location.hash = 'teacher/deadlines'; } } }, 'Сроки'));
+  if (isAdmin()) acts.append(el('button', { on: { click: () => { location.hash = 'teacher/groups'; } } }, 'Группы и преподаватели'));
   m.appendChild(acts);
   const t = el('table', { class: 'grade' });
   t.innerHTML = '<tr><th>Студент</th><th>Группа</th>' + CAT.modules.map(M => '<th title="' + esc(M.title) + '">' + (M.n === 15 ? 'И' : M.n) + '</th>').join('') +
     '<th>Баллы</th><th>Рейтинг</th><th>Ждут проверки</th><th>Последняя сдача</th></tr>' +
-    rows.map(x => '<tr><td>' + (x.p ? '<a href="#teacher/' + x.p.user_id + '">' + esc(x.r.full_name) + '</a>' : esc(x.r.full_name) + ' <span class="small">(не входил)</span>') + '</td><td>' + esc(x.r.group_name || '') + '</td>' +
+    shown.map(x => '<tr><td>' + (x.p ? '<a href="#teacher/' + x.p.user_id + '">' + esc(x.r.full_name) + '</a>' : esc(x.r.full_name) + ' <span class="small">(не входил)</span>') + '</td><td>' + esc(x.r.group_name || '') + '</td>' +
       x.mods.map(v => '<td>' + (v ? fmt(v) : '') + '</td>').join('') + '<td><b>' + fmt(x.total) + '</b></td><td><b>' + fmt(x.rating) + '</b></td><td>' + (x.pend || '') + '</td><td>' + fmtDate(x.last) + '</td></tr>').join('');
+  if (!shown.length) t.innerHTML += '<tr><td colspan="' + (CAT.modules.length + 6) + '" class="small">В этой группе пока нет студентов — добавьте их кнопкой «Добавить студентов».</td></tr>';
   m.appendChild(el('div', { style: 'overflow-x:auto' })).appendChild(t);
   m.appendChild(el('p', { class: 'small' }, 'Максимум по модулям: ' + CAT.modules.map(M => (M.n === 15 ? 'И' : M.n) + ' — ' + modStat(M).m).join(', ') + '.'));
 }
@@ -1723,7 +1778,7 @@ function teacherStudent(m, x, td) {
   if (!x) { m.innerHTML = '<div class="result bad">Студент не найден.</div>'; return; }
   m.appendChild(el('div', { class: 'crumbs' }, '<a href="#teacher">← Ведомость</a>'));
   m.appendChild(el('h1', { class: 'lesson-h' }, esc(x.r.full_name)));
-  m.appendChild(el('p', { class: 'small' }, esc(x.r.email) + ' · баллы в срок ' + fmt(x.total) + ' из ' + CAT.total + ' · рейтинг ' + fmt(x.rating) + ' из 100'));
+  m.appendChild(el('p', { class: 'small' }, esc(x.r.email) + (x.r.group_name ? ' · группа ' + esc(x.r.group_name) : '') + ' · баллы в срок ' + fmt(x.total) + ' из ' + CAT.total + ' · рейтинг ' + fmt(x.rating) + ' из 100'));
   CAT.modules.forEach(M => {
     const tasks = M.lessons.flatMap(l => l.steps.filter(s => isTask(s)).map(s => [l, s]));
     const done = tasks.filter(([, s]) => x.best[s.id]);
@@ -1753,39 +1808,53 @@ async function showAnswer(x, stepId) {
   md.addEventListener('click', e => { if (e.target === md) md.remove(); });
 }
 
-function csv(rows) {
+function csv(rows, g) {
   const q = v => '"' + String(v).replace(/"/g, '""') + '"';
   const head = ['ФИО', 'Почта', 'Группа', ...CAT.modules.map(M => M.label), 'Баллы в срок', 'Рейтинг из 100', 'Ждут проверки', 'Последняя сдача'];
   const lines = [head.map(q).join(';')].concat(rows.map(x => [x.r.full_name, x.r.email, x.r.group_name || '', ...x.mods.map(v => fmt(v)), fmt(x.total), fmt(x.rating), x.pend, x.last ? fmtDate(x.last) : ''].map(q).join(';')));
-  const a = el('a', { href: URL.createObjectURL(new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' })), download: 'МОБАК_ведомость_' + new Date().toISOString().slice(0, 10) + '.csv' });
+  const tag = g && g !== '-' ? g.replace(/[^\p{L}\p{N}-]+/gu, '_') + '_' : '';
+  const a = el('a', { href: URL.createObjectURL(new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' })), download: 'МОБАК_ведомость_' + tag + new Date().toISOString().slice(0, 10) + '.csv' });
   document.body.appendChild(a); a.click(); a.remove();
 }
 
-function addStudents() {
+function addStudents(td, g) {
+  const mg = myGroups(td).filter(x => !x.archived), def = g && g !== '-' ? g : (mg[0] ? mg[0].group_name : '');
   const md = el('div', { class: 'modal' });
-  md.innerHTML = '<div class="box wide"><h2>Добавить студентов</h2><p class="small">По одному в строке: <code>Фамилия Имя; почта; группа</code> (группу можно не указывать). Уже добавленные почты обновятся.</p>' +
+  md.innerHTML = '<div class="box wide"><h2>Добавить студентов</h2><p class="small">По одному в строке: <code>Фамилия Имя; почта; группа</code>. Группу можно не указывать — студент попадёт в группу по умолчанию. ' +
+    (isAdmin() ? 'Новая группа создастся сама.' : 'Можно указывать только свои группы.') + ' Уже добавленные почты обновятся.</p>' +
+    '<p><label>Группа по умолчанию <select id="stG">' + groupOptions(mg, def, isAdmin() ? [['', 'без группы']] : []) + '</select></label></p>' +
     '<textarea id="stIn" placeholder="Иванов Иван; ivanov@example.com; ИБ-1-24"></textarea><div class="result" hidden id="stRes"></div>' +
     '<div class="actions"><button class="primary" id="stOk">Добавить</button><button id="stX">Закрыть</button></div></div>';
   document.body.appendChild(md);
   $('#stX', md).onclick = () => md.remove();
   $('#stOk', md).onclick = async () => {
-    const rows = [], bad = [];
+    const rows = [], bad = [], dg = $('#stG', md).value, mine = new Set(mg.map(x => x.group_name));
     $('#stIn', md).value.split('\n').map(l => l.trim()).filter(Boolean).forEach(l => {
       const [name, email, group] = l.split(/[;\t]/).map(x => (x || '').trim());
-      if (!name || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email || '')) bad.push(l); else rows.push({ full_name: name, email: email.toLowerCase(), group_name: group || null, role: 'student' });
+      const gr = group || dg;
+      if (!name || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email || '')) bad.push(l + '  — нужны ФИО и почта');
+      else if (!isAdmin() && !mine.has(gr)) bad.push(l + '  — ' + (gr ? 'группа ' + gr + ' не ваша' : 'укажите группу'));
+      else rows.push({ full_name: name, email: email.toLowerCase(), group_name: gr || null, role: 'student' });
     });
     const res = $('#stRes', md); res.hidden = false;
     if (bad.length) { res.className = 'result bad'; res.textContent = 'Не разобраны строки:\n' + bad.join('\n'); return; }
+    if (!rows.length) { res.className = 'result bad'; res.textContent = 'Список пуст'; return; }
+    const known = new Set(td.groups.map(x => x.group_name));
+    const fresh = [...new Set(rows.map(r => r.group_name).filter(x => x && !known.has(x)))];
+    if (fresh.length) {
+      const { error } = await sb.from('groups').upsert(fresh.map(x => ({ group_name: x })), { onConflict: 'group_name', ignoreDuplicates: true });
+      if (error) { res.className = 'result bad'; res.textContent = 'Не удалось создать группы: ' + errText(error); return; }
+    }
     const { error } = await sb.from('roster').upsert(rows, { onConflict: 'email' });
     if (error) { res.className = 'result bad'; res.textContent = errText(error); return; }
-    res.className = 'result ok'; res.textContent = 'Добавлено: ' + rows.length + '. Теперь они могут войти по своей почте.';
+    res.className = 'result ok'; res.textContent = 'Добавлено: ' + rows.length + (fresh.length ? ', новые группы: ' + fresh.join(', ') : '') + '. Теперь они могут войти по своей почте.';
     TD = null;
   };
 }
 
 function extendForm(rows) {
   const md = el('div', { class: 'modal' });
-  const st = rows.filter(x => x.p).map(x => '<option value="' + x.p.user_id + '">' + esc(x.r.full_name) + '</option>').join('');
+  const st = rows.filter(x => x.p).map(x => '<option value="' + x.p.user_id + '">' + esc(x.r.full_name) + (x.r.group_name ? ' · ' + esc(x.r.group_name) : '') + '</option>').join('');
   const mods = CAT.modules.map(M => '<option value="' + M.sectionId + '">' + esc(M.label) + '</option>').join('');
   md.innerHTML = '<div class="box"><h2>Продлить срок</h2><p class="small">Сдачи до новой даты засчитываются как сданные в срок; для КТ продление снимает ограничение окна пары.</p>' +
     '<p>Студент <select id="exU">' + st + '</select></p><p>Модуль <select id="exM">' + mods + '</select></p><p>Новый срок <input type="datetime-local" id="exD"></p>' +
@@ -1799,6 +1868,211 @@ function extendForm(rows) {
     res.className = 'result ' + (error ? 'bad' : 'ok'); res.textContent = error ? errText(error) : 'Срок продлён.';
     TD = null;
   };
+}
+
+/* сроки: общие сроки курса (руководитель) и сроки группы (преподаватель своих групп) */
+const toLocal = t => { if (!t) return ''; const d = new Date(t), p = n => String(n).padStart(2, '0'); return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + 'T' + p(d.getHours()) + ':' + p(d.getMinutes()); };
+const fromLocal = v => v ? new Date(v).toISOString() : null;
+const sameMin = (a, b) => (a ? Math.floor(Date.parse(a) / 60000) : null) === (b ? Math.floor(Date.parse(b) / 60000) : null);
+const DL_COLS = [['class_start', 'Пара: начало'], ['class_end', 'Пара: конец'], ['due_at', 'Срок сдачи']];
+let DLG = null;   // группа, открытая на странице сроков; '*' — общие сроки курса
+function deadlinesPage(m, td) {
+  const mg = myGroups(td).filter(x => !x.archived);
+  m.appendChild(el('div', { class: 'crumbs' }, '<a href="#teacher">← Ведомость</a>'));
+  m.appendChild(el('h1', { class: 'lesson-h' }, 'Сроки'));
+  if (!isAdmin() && !mg.length) { m.appendChild(el('div', { class: 'result' }, 'Вам пока не назначены группы.')); return; }
+  const cg = curGroup(td);
+  if (DLG === null || (DLG === '*' && !isAdmin()) || (DLG !== '*' && !mg.some(x => x.group_name === DLG))) DLG = cg && cg !== '-' && mg.some(x => x.group_name === cg) ? cg : mg[0] ? mg[0].group_name : '*';
+  const g = DLG, course = g === '*';
+  const off = -new Date().getTimezoneOffset() / 60;
+  m.appendChild(el('p', { class: 'small' }, 'Общие сроки курса задаёт руководитель. Если группа идёт по своему расписанию, задайте ей свои сроки: они заменяют общие для студентов группы, а модули с общими сроками следуют за общими. ' +
+    'Окно пары важно для КТ: сдача КТ вне окна не засчитывается в срок (кроме продлённых). Продления отдельным студентам — кнопкой «Продлить срок» в ведомости. Время — по часам этого компьютера (UTC' + (off >= 0 ? '+' : '') + off + ').'));
+  const bar = el('div', { class: 'filters' }, '<label>Сроки <select id="dlSel">' + groupOptions(mg, g, isAdmin() ? [['*', 'Общие сроки курса']] : []) + '</select></label>');
+  $('#dlSel', bar).onchange = e => { DLG = e.target.value; m.innerHTML = ''; deadlinesPage(m, td); };
+  m.appendChild(bar);
+  const base = id => td.deadlines.find(d => d.section_id === id) || {};
+  const own = id => td.gd.find(d => d.group_name === g && d.section_id === id);
+  const t = el('table', { class: 'grade dl' });
+  t.innerHTML = '<tr><th>Модуль</th>' + DL_COLS.map(([, h]) => '<th>' + h + '</th>').join('') + (course ? '' : '<th>Откуда</th>') + '</tr>' +
+    CAT.modules.map(M => {
+      const v = (course ? base(M.sectionId) : own(M.sectionId) || base(M.sectionId));
+      return '<tr data-s="' + M.sectionId + '"><td>' + esc(M.label) + '</td>' + DL_COLS.map(([c]) => '<td><input type="datetime-local" data-c="' + c + '" value="' + toLocal(v[c]) + '"></td>').join('') +
+        (course ? '' : '<td class="src">' + (own(M.sectionId) ? 'группы' : 'общий') + '</td>') + '</tr>';
+    }).join('');
+  m.appendChild(el('div', { style: 'overflow-x:auto' })).appendChild(t);
+  // заполнение по расписанию — то же правило, что seed_deadlines.sql: неделя w — пара в день первой пары + 7(w−1),
+  // срок — через неделю в начало пары; итоговая работа — день пары 14-й недели, 23:59
+  const fill = el('details', { class: 'step' }, '<summary><b>Заполнить по расписанию</b></summary><p class="small">Пары раз в неделю. Срок сдачи недели — начало следующей пары; итоговая работа — до 23:59 в день пары 14-й недели.</p>' +
+    '<div class="filters"><label>Первая пара <input type="date" id="fD"></label><label>с <input type="time" id="fA" value="08:00"></label><label>до <input type="time" id="fB" value="20:00"></label><button id="fGo">Заполнить</button></div>');
+  m.appendChild(fill);
+  $('#fGo', fill).onclick = () => {
+    const d0 = $('#fD', fill).value, a = $('#fA', fill).value || '08:00', b = $('#fB', fill).value || '20:00';
+    if (!d0) return toast('Укажите дату первой пары');
+    const day = k => { const d = new Date(d0 + 'T00:00'); d.setDate(d.getDate() + 7 * k); const p = n => String(n).padStart(2, '0'); return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()); };
+    CAT.modules.forEach(M => {
+      const tr = $('tr[data-s="' + M.sectionId + '"]', t), w = M.n === 15 ? 14 : M.n;
+      const val = { class_start: day(w - 1) + 'T' + a, class_end: day(w - 1) + 'T' + b, due_at: M.n === 15 ? day(13) + 'T23:59' : day(w) + 'T' + a };
+      DL_COLS.forEach(([c]) => { $('input[data-c="' + c + '"]', tr).value = val[c]; });
+    });
+    toast('Заполнено — проверьте и сохраните');
+  };
+  const res = el('div', { class: 'result', hidden: '' });
+  const acts = el('div', { class: 'actions' });
+  const save = async () => {
+    const rows = [], bad = [];
+    t.querySelectorAll('tr[data-s]').forEach(tr => {
+      const r = { section_id: +tr.dataset.s };
+      DL_COLS.forEach(([c]) => { r[c] = fromLocal($('input[data-c="' + c + '"]', tr).value); });
+      if (r.class_start && r.class_end && r.class_end <= r.class_start) bad.push(tr.cells[0].textContent);
+      rows.push(r);
+    });
+    res.hidden = false;
+    if (bad.length) { res.className = 'result bad'; res.textContent = 'Конец пары раньше начала: ' + bad.join(', '); return; }
+    let error;
+    if (course) ({ error } = await sb.from('deadlines').upsert(rows, { onConflict: 'section_id' }));
+    else {
+      // свои строки — только у модулей, где сроки группы отличаются от общих
+      const differ = rows.filter(r => DL_COLS.some(([c]) => !sameMin(r[c], base(r.section_id)[c])));
+      const same = rows.filter(r => !differ.includes(r)).map(r => r.section_id).filter(id => own(id));
+      if (differ.length) ({ error } = await sb.from('group_deadlines').upsert(differ.map(r => Object.assign({ group_name: g }, r)), { onConflict: 'group_name,section_id' }));
+      if (!error && same.length) ({ error } = await sb.from('group_deadlines').delete().eq('group_name', g).in('section_id', same));
+    }
+    if (error) { res.className = 'result bad'; res.textContent = 'Не сохранено: ' + errText(error); return; }
+    TD = null; await teacher('deadlines'); toast('Сроки сохранены');
+  };
+  acts.append(el('button', { class: 'primary', on: { click: save } }, 'Сохранить'));
+  if (!course && td.gd.some(d => d.group_name === g)) acts.append(el('button', { on: { click: async () => {
+    if (!confirm('Вернуть группе ' + g + ' общие сроки курса по всем модулям?')) return;
+    const { error } = await sb.from('group_deadlines').delete().eq('group_name', g);
+    if (error) { res.hidden = false; res.className = 'result bad'; res.textContent = errText(error); return; }
+    TD = null; await teacher('deadlines'); toast('У группы снова общие сроки');
+  } } }, 'Вернуть общие сроки'));
+  m.append(acts, res);
+}
+
+/* группы и преподаватели (руководитель курса) */
+function groupsPage(m, td) {
+  const reload = async () => { TD = null; await teacher('groups'); };
+  const name = e => (td.roster.find(r => r.email === e) || {}).full_name || e;
+  m.appendChild(el('div', { class: 'crumbs' }, '<a href="#teacher">← Ведомость</a>'));
+  m.appendChild(el('h1', { class: 'lesson-h' }, 'Группы и преподаватели'));
+  m.appendChild(el('p', { class: 'small' }, 'Преподаватель видит в ведомости только назначенные ему группы: их студентов, сдачи, сроки и продления. Руководитель курса видит всё. Архивная группа не показывается в ведомости по умолчанию, данные остаются.'));
+  const t = el('table', { class: 'grade' });
+  const groups = myGroups(td);
+  t.innerHTML = '<tr><th>Группа</th><th>Семестр</th><th>Студентов</th><th>Преподаватели</th><th>Архив</th></tr>' +
+    groups.map(g => '<tr><td>' + esc(g.group_name) + '</td><td>' + esc(g.term || '') + '</td><td>' + td.roster.filter(r => r.role === 'student' && r.group_name === g.group_name).length + '</td><td>' +
+      (td.tg.filter(x => x.group_name === g.group_name).map(x => '<span class="badge">' + esc(name(x.email)) + ' <button class="link" title="Снять с группы" data-un="' + esc(x.email) + '" data-g="' + esc(g.group_name) + '">×</button></span>').join(' ') || '<span class="small">нет</span>') +
+      '</td><td><input type="checkbox" data-arch="' + esc(g.group_name) + '"' + (g.archived ? ' checked' : '') + ' aria-label="Архив"></td></tr>').join('');
+  if (!groups.length) t.innerHTML += '<tr><td colspan="5" class="small">Групп пока нет.</td></tr>';
+  t.querySelectorAll('[data-un]').forEach(b => b.onclick = async () => {
+    const { error } = await sb.from('teacher_groups').delete().eq('email', b.dataset.un).eq('group_name', b.dataset.g);
+    if (error) return toast(errText(error));
+    reload();
+  });
+  t.querySelectorAll('[data-arch]').forEach(c => c.onchange = async () => {
+    const { error } = await sb.from('groups').update({ archived: c.checked }).eq('group_name', c.dataset.arch);
+    if (error) { c.checked = !c.checked; return toast(errText(error)); }
+    reload();
+  });
+  m.appendChild(el('div', { style: 'overflow-x:auto' })).appendChild(t);
+
+  const ng = el('div', { class: 'step' }, '<h2>Новая группа</h2><div class="filters"><label>Код группы <input type="text" id="ngN" placeholder="ИБ-1-24" maxlength="40"></label>' +
+    '<label>Семестр <input type="text" id="ngT" placeholder="2026-осень"></label><button class="primary" id="ngOk">Создать</button></div>');
+  $('#ngOk', ng).onclick = async () => {
+    const n = $('#ngN', ng).value.trim(), term = $('#ngT', ng).value.trim();
+    if (!n) return toast('Укажите код группы');
+    const { error } = await sb.from('groups').insert({ group_name: n, term: term || null });
+    if (error) return toast(error.code === '23505' ? 'Такая группа уже есть' : errText(error));
+    reload();
+  };
+  const tch = el('div', { class: 'step' }, '<h2>Назначить преподавателя</h2><p class="small">Если почты ещё нет в списке, она добавится с ролью «преподаватель». Студента назначить нельзя.</p>' +
+    '<div class="filters"><label>Группа <select id="tcG">' + groupOptions(groups.filter(g => !g.archived), '', []) + '</select></label>' +
+    '<label>ФИО <input type="text" id="tcN" placeholder="Фамилия Имя Отчество"></label><label>Почта <input type="email" id="tcE" placeholder="teacher@kstu.kg"></label><button class="primary" id="tcOk">Назначить</button></div>');
+  $('#tcOk', tch).onclick = async () => {
+    const g = $('#tcG', tch).value, email = $('#tcE', tch).value.trim().toLowerCase(), fio = $('#tcN', tch).value.trim();
+    if (!g) return toast('Сначала создайте группу');
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return toast('Введите почту');
+    const ex = td.roster.find(r => r.email === email);
+    if (ex && ex.role === 'student') return toast('Эта почта в списке как студент группы ' + (ex.group_name || '—'));
+    if (!ex) {
+      if (!fio) return toast('Укажите ФИО преподавателя');
+      const { error } = await sb.from('roster').insert({ email, full_name: fio, group_name: null, role: 'teacher' });
+      if (error) return toast(errText(error));
+    }
+    const { error } = await sb.from('teacher_groups').upsert({ email, group_name: g }, { onConflict: 'email,group_name', ignoreDuplicates: true });
+    if (error) return toast(errText(error));
+    reload();
+  };
+  m.append(ng, tch);
+}
+
+/* ---------- кабинет студента ---------- */
+async function cabinet() {
+  CUR = null; drawSide();
+  const m = $('#main'); m.className = ''; m.innerHTML = '<div class="loading">Загрузка кабинета…</div>';
+  const mine = q => q.eq('user_id', ME.user_id);
+  const [vb, vd, sub, ro] = await Promise.all([
+    mine(sb.from('v_best').select('*')).limit(10000),
+    mine(sb.from('v_deadlines').select('*')).limit(1000),
+    mine(sb.from('submissions').select('id, step_id, prelim_score, created_at')).order('created_at', { ascending: false }).limit(100),
+    sb.from('roster').select('group_name').eq('email', ME.email).maybeSingle()]);
+  const err = [vb, vd, sub, ro].find(x => x.error);
+  if (err) { m.innerHTML = '<div class="result bad">Не удалось загрузить кабинет: ' + esc(errText(err.error)) + '</div>'; return; }
+  const ids = sub.data.map(s => s.id);
+  const scs = ids.length ? await sb.from('scores').select('submission_id, score, hint').in('submission_id', ids) : { data: [] };
+  if (scs.error) { m.innerHTML = '<div class="result bad">Не удалось загрузить баллы: ' + esc(errText(scs.error)) + '</div>'; return; }
+  const ver = Object.fromEntries(scs.data.map(v => [v.submission_id, v]));
+  const best = Object.fromEntries(vb.data.map(b => [b.step_id, b]));
+  const dl = Object.fromEntries(vd.data.map(d => [d.section_id, d]));
+  const now = Date.now(), DAY = 864e5;
+  const modPts = M => M.lessons.reduce((a, l) => l.steps.reduce((x, s) => { const b = best[s.id]; return b ? { t: x.t + s.cost * (b.best_on_time || 0), l: x.l + s.cost * (b.best_late && !b.best_on_time ? b.best_late : 0) } : x; }, a), { t: 0, l: 0 });
+  const pts = CAT.modules.map(modPts), total = pts.reduce((a, p) => a + p.t, 0);
+  const pend = vb.data.reduce((a, b) => a + (b.attempts - b.verified), 0);
+  const parts = ratingParts(best), rate = parts.reduce((a, x) => a + x.part, 0);
+  const upcoming = CAT.modules.map(M => [M, dl[M.sectionId]]).filter(([M, d]) => d && d.due_at && Date.parse(d.due_at) > now && modPts(M).t < modStat(M).m)
+    .sort((a, b) => Date.parse(a[1].due_at) - Date.parse(b[1].due_at))[0];
+  const inDays = t => { const d = Math.ceil((Date.parse(t) - now) / DAY); return d <= 1 ? 'меньше суток' : 'через ' + d + ' ' + plural(d, 'день', 'дня', 'дней'); };
+  m.innerHTML = '';
+  m.appendChild(el('h1', { class: 'lesson-h' }, 'Мой кабинет'));
+  m.appendChild(el('p', { class: 'small' }, esc(ME.full_name || '') + ' · ' + esc(ME.email) + (ro.data && ro.data.group_name ? ' · группа ' + esc(ro.data.group_name) : '')));
+  m.appendChild(el('div', { class: 'tiles' },
+    '<div class="tile"><b>' + fmt(total) + '</b><span>из ' + CAT.total + ' баллов в срок</span></div>' +
+    '<div class="tile"><b>' + fmt(rate) + '</b><span>рейтинг из 100</span></div>' +
+    '<div class="tile"><b>' + pend + '</b><span>' + plural(pend, 'сдача ждёт', 'сдачи ждут', 'сдач ждут') + ' проверки сервера</span></div>' +
+    '<div class="tile"><b>' + (upcoming ? fmtDate(upcoming[1].due_at) : '—') + '</b><span>' + (upcoming ? 'ближайший срок: ' + esc(upcoming[0].label) + ', ' + inDays(upcoming[1].due_at) : 'ближайших сроков нет') + '</span></div>'));
+  m.appendChild(el('p', { class: 'small' }, 'Здесь — баллы, проверенные сервером (раз в час). Сразу после сдачи на страницах уроков виден предварительный балл из браузера; в кабинет он попадёт после перепроверки.'));
+
+  m.appendChild(el('h2', {}, 'Сроки и баллы по модулям'));
+  const t = el('table', { class: 'grade' });
+  t.innerHTML = '<tr><th>Модуль</th><th>Пара</th><th>Срок</th><th>Статус</th><th>В срок</th><th>После срока</th></tr>' + CAT.modules.map((M, i) => {
+    const d = dl[M.sectionId] || {}, mx = modStat(M).m, p = pts[i];
+    const due = d.due_at ? Date.parse(d.due_at) : null;
+    const st = mx && p.t >= mx ? '<span class="badge full">всё в срок</span>'
+      : !due ? '<span class="badge">без срока</span>'
+      : due > now ? '<span class="badge' + (due - now < 3 * DAY ? ' part' : '') + '">' + inDays(d.due_at) + '</span>'
+      : '<span class="badge late">срок прошёл</span>';
+    return '<tr><td>' + esc(M.label) + '</td><td>' + (d.class_start ? fmtDate(d.class_start) + (d.class_end ? '–' + new Date(d.class_end).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }) : '') : '—') + '</td><td>' + fmtDate(d.due_at) +
+      (d.extended ? ' <span class="badge part" title="Обычный срок: ' + esc(fmtDate(d.base_due_at)) + '">продлён</span>' : '') + '</td><td>' + st + '</td><td>' + fmt(p.t) + ' из ' + mx + '</td><td>' + (p.l ? fmt(p.l) : '') + '</td></tr>';
+  }).join('');
+  m.appendChild(el('div', { style: 'overflow-x:auto' })).appendChild(t);
+
+  m.appendChild(el('h2', {}, 'Из чего складывается рейтинг'));
+  const r = el('table', { class: 'grade' });
+  r.innerHTML = '<tr><th>Часть курса</th><th>Вес</th><th>Набрано в срок</th><th>Вклад</th></tr>' +
+    parts.map(x => '<tr><td>' + CAT_NAMES[x.c] + '</td><td>' + x.w + '</td><td>' + fmt(x.got) + ' из ' + x.max + '</td><td>' + fmt(x.part) + '</td></tr>').join('') +
+    '<tr><td><b>Итого</b></td><td>100</td><td></td><td><b>' + fmt(rate) + '</b></td></tr>';
+  m.appendChild(el('div', { style: 'overflow-x:auto' })).appendChild(r);
+
+  m.appendChild(el('h2', {}, 'Последние сдачи'));
+  if (!sub.data.length) { m.appendChild(el('p', { class: 'small' }, 'Сдач пока нет.')); return; }
+  const h = el('table', { class: 'grade hist' });
+  h.innerHTML = '<tr><th>Когда</th><th>Шаг</th><th>Предварительно</th><th>Сервер</th></tr>' + sub.data.map(x => {
+    const s = STEPMETA[x.step_id], v = ver[x.id];
+    if (!s) return '';
+    return '<tr><td>' + fmtDate(x.created_at) + '</td><td><a href="#' + s.lesson.key + '/' + s.num + '">' + esc(s.lesson.title) + ' · ' + s.num + '</a></td><td>' + (x.prelim_score === null ? '—' : fmt(x.prelim_score * s.cost) + ' из ' + s.cost) + '</td><td>' +
+      (v ? fmt(v.score * s.cost) + ' из ' + s.cost + (v.hint ? ' <span class="small">' + esc(v.hint.slice(0, 200)) + '</span>' : '') : '<span class="small">ждёт проверки</span>') + '</td></tr>';
+  }).join('');
+  m.appendChild(el('div', { style: 'overflow-x:auto' })).appendChild(h);
 }
 
 /* ---------- имя, отчёт, меню ---------- */
@@ -1856,7 +2130,8 @@ function menu() {
   const mn = el('div', { class: 'menu' });
   const item = (t, fn) => mn.appendChild(el('button', { on: { click: () => { mn.remove(); fn(); } } }, t));
   if (SERVER) {
-    if (ME && ME.role === 'teacher') item('Ведомость', () => { location.hash = 'teacher'; });
+    if (isStaff()) item('Ведомость', () => { location.hash = 'teacher'; });
+    if (ME) item('Мой кабинет', () => { location.hash = 'me'; });
     if (ME) item('Выйти (' + ME.email + ')', async () => { await sb.auth.signOut(); location.hash = ''; location.reload(); });
   } else {
     item('Сменить имя', () => askName(true));
@@ -1915,7 +2190,9 @@ $('#moreBtn').onclick = menu;
   ME = prof;
   loadLocal(KEY + ':' + ME.user_id);
   S.uid = ME.user_id; S.name = ME.full_name || ME.email;   // uid — seed личных данных (общий с перепроверкой)
-  if (ME.role === 'teacher') { const b = el('button', { class: 'primary', on: { click: () => { location.hash = 'teacher'; } } }, 'Ведомость'); $('#reportBtn').after(b); }
+  const hb = isStaff() ? el('button', { class: 'primary', on: { click: () => { location.hash = 'teacher'; } } }, 'Ведомость')
+    : el('button', { on: { click: () => { location.hash = 'me'; } } }, 'Мой кабинет');
+  $('#reportBtn').after(hb);
   try { await flushOutbox(); await pullProgress(); } catch (e) { toast('Прогресс с сервера не загрузился: ' + errText(e)); }
   save();
   window.addEventListener('hashchange', route);
