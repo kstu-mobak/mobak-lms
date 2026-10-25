@@ -4,202 +4,643 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>МОБАК — курс</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<script>
+// оформление (key | ide | note) и тема — до отрисовки; шрифты грузятся только для выбранного оформления
+(function () {
+  var K = 'mobak-lms-v1', D = { key: 1, ide: 1, note: 1 }, root = document.documentElement, d = null, t = null;
+  try { d = new URLSearchParams(location.search).get('design'); if (D[d]) localStorage.setItem(K + '-design', d); else d = localStorage.getItem(K + '-design'); t = localStorage.getItem(K + '-theme'); } catch (e) {}
+  root.dataset.design = D[d] ? d : 'key';
+  if (t) root.dataset.theme = t;
+  var F = {
+    key: 'family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;700&family=JetBrains+Mono:wght@400;600',
+    ide: 'family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600;700',
+    note: 'family=PT+Serif:ital,wght@0,400;0,700;1,400&family=PT+Mono&family=PT+Sans:wght@400;700'
+  }, done = {};
+  window.loadDesignFonts = function (x) {
+    if (done[x]) return; done[x] = 1;
+    var l = document.createElement('link'); l.rel = 'stylesheet'; l.href = 'https://fonts.googleapis.com/css2?' + F[x] + '&display=swap';
+    document.head.appendChild(l);
+  };
+  window.loadDesignFonts(root.dataset.design);
+})();
+</script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <style>
-:root {
-  --bg: #f6f7f9; --panel: #ffffff; --panel2: #f0f2f5; --text: #1d2330; --muted: #5d6676; --line: #dde1e8;
-  --accent: #2f5bd3; --accent-soft: #e6ecfb; --ok: #1f8a4c; --ok-soft: #e3f4ea; --warn: #a86400; --warn-soft: #fbf0dc;
-  --bad: #c2362f; --bad-soft: #fbe7e5; --code-bg: #f3f4f7; --shadow: 0 1px 2px rgba(20,30,50,.06), 0 2px 8px rgba(20,30,50,.05);
+/* Три оформления одного сайта: data-design = key («Ключ», по умолчанию) | ide («Рабочее место») | note («Тетрадь»).
+   Логика и разметка шагов общие; оформления меняют токены ниже и раскладку (блоки «ОФОРМЛЕНИЕ …» в конце). */
+:root, :root[data-design="key"] {
+  --bg: #f6f5fb; --panel: #ffffff; --panel2: #f0eef8; --text: #19162e; --muted: #5e5a78; --faint: #8a86a3; --line: #e4e1f0; --line2: #d3cfe4;
+  --accent: #5b3df5; --accent-hover: #4a2ee0; --accent-soft: #ece8ff; --on-accent: #ffffff;
+  --ok: #128a4e; --ok-soft: #e1f5e9; --warn: #9a5a00; --warn-soft: #fcf0d9; --bad: #d63c41; --bad-soft: #fde8e8; --code-bg: #f8f7fc;
+  --bit: #ffc93c; --bit-ink: #3b2a00;
+  --hl-k: #7b3fe4; --hl-s: #128a4e; --hl-n: #b45309; --hl-b: #2563eb; --hl-c: #8a86a3;
+  --font: "Manrope", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; --display: "Unbounded", "Manrope", system-ui, sans-serif; --mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+  --r: 18px; --r-sm: 12px; --btn-r: 14px; --top-h: 60px; --shadow: none; --shadow-lg: 0 16px 40px rgba(25,22,46,.18); --bw: 2px;
+  color-scheme: light;
 }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #14171c; --panel: #1c2027; --panel2: #232831; --text: #e4e7ec; --muted: #9aa3b2; --line: #313844;
-    --accent: #7c9cf5; --accent-soft: #232f4d; --ok: #5cc98a; --ok-soft: #1c3227; --warn: #e3a64a; --warn-soft: #3a2e1a;
-    --bad: #f07a72; --bad-soft: #3d2221; --code-bg: #171a20; --shadow: none;
-  }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]):not([data-design="ide"]):not([data-design="note"]), :root[data-design="key"]:not([data-theme="light"]) {
+  --bg: #110f1e; --panel: #1a1730; --panel2: #221e3b; --text: #eceaf6; --muted: #a29fba; --faint: #7d7998; --line: #2e2a48; --line2: #3b3659;
+  --accent: #9d8cff; --accent-hover: #b3a6ff; --accent-soft: #2a2450; --on-accent: #110f1e;
+  --ok: #4cd68a; --ok-soft: #173627; --warn: #f0b356; --warn-soft: #3a2d16; --bad: #ff7a7e; --bad-soft: #3d1d24; --code-bg: #15132a;
+  --hl-k: #c4b1ff; --hl-s: #7fe0a8; --hl-n: #ffc56b; --hl-b: #8fb4ff; --hl-c: #7d7998; --shadow-lg: 0 16px 40px rgba(0,0,0,.5); color-scheme: dark; } }
+:root[data-design="key"][data-theme="dark"] {
+  --bg: #110f1e; --panel: #1a1730; --panel2: #221e3b; --text: #eceaf6; --muted: #a29fba; --faint: #7d7998; --line: #2e2a48; --line2: #3b3659;
+  --accent: #9d8cff; --accent-hover: #b3a6ff; --accent-soft: #2a2450; --on-accent: #110f1e;
+  --ok: #4cd68a; --ok-soft: #173627; --warn: #f0b356; --warn-soft: #3a2d16; --bad: #ff7a7e; --bad-soft: #3d1d24; --code-bg: #15132a;
+  --hl-k: #c4b1ff; --hl-s: #7fe0a8; --hl-n: #ffc56b; --hl-b: #8fb4ff; --hl-c: #7d7998; --shadow-lg: 0 16px 40px rgba(0,0,0,.5); color-scheme: dark;
 }
-:root[data-theme="dark"] {
-  --bg: #14171c; --panel: #1c2027; --panel2: #232831; --text: #e4e7ec; --muted: #9aa3b2; --line: #313844;
-  --accent: #7c9cf5; --accent-soft: #232f4d; --ok: #5cc98a; --ok-soft: #1c3227; --warn: #e3a64a; --warn-soft: #3a2e1a;
-  --bad: #f07a72; --bad-soft: #3d2221; --code-bg: #171a20; --shadow: none;
+/* «Рабочее место»: тёмная по умолчанию, светлая — по выбору */
+:root[data-design="ide"] {
+  --bg: #12161d; --panel: #171c25; --panel2: #1d2430; --text: #d9dee7; --muted: #8c97a8; --faint: #6b7687; --line: #2a3240; --line2: #364051;
+  --accent: #f2b13d; --accent-hover: #ffc35a; --accent-soft: #2e2716; --on-accent: #12161d;
+  --ok: #5cc98d; --ok-soft: #16301f; --warn: #f2b13d; --warn-soft: #2e2716; --bad: #f0736a; --bad-soft: #3a1f1d; --code-bg: #0f1319;
+  --bit: #f2b13d; --bit-ink: #12161d;
+  --hl-k: #d6a3ff; --hl-s: #9fd8a8; --hl-n: #f2b13d; --hl-b: #7cc7e8; --hl-c: #6b7687;
+  --font: "IBM Plex Sans", system-ui, "Segoe UI", sans-serif; --display: "IBM Plex Sans", system-ui, sans-serif; --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  --r: 6px; --r-sm: 4px; --btn-r: 4px; --top-h: 42px; --shadow: none; --shadow-lg: 0 12px 32px rgba(0,0,0,.5); --bw: 1px;
+  color-scheme: dark;
 }
+:root[data-design="ide"][data-theme="light"] {
+  --bg: #f3f4f6; --panel: #ffffff; --panel2: #eceff3; --text: #1d232d; --muted: #5a6474; --faint: #7b8494; --line: #d6dbe2; --line2: #c3cad4;
+  --accent: #a15f00; --accent-hover: #844d00; --accent-soft: #fbefdc; --on-accent: #ffffff;
+  --ok: #1b7a48; --ok-soft: #e2f3e9; --warn: #a15f00; --warn-soft: #fbefdc; --bad: #bf3a30; --bad-soft: #fbe7e5; --code-bg: #fbfbfc;
+  --hl-k: #8a3fc4; --hl-s: #2b7a3d; --hl-n: #a15f00; --hl-b: #0b6f93; --hl-c: #7b8494; --shadow-lg: 0 12px 32px rgba(29,35,45,.18); color-scheme: light;
+}
+/* «Тетрадь» */
+:root[data-design="note"] {
+  --bg: #fbfcfe; --panel: #ffffff; --panel2: #f1f5fa; --text: #1c2b4a; --muted: #5d6679; --faint: #808a9c; --line: #cfd8e5; --line2: #b9c4d4; --grid: #e6edf6;
+  --accent: #1c2b4a; --accent-hover: #d2423b; --accent-soft: #e8eef8; --on-accent: #ffffff; --rule: #d2423b;
+  --ok: #23774a; --ok-soft: #e4f2ea; --warn: #9a5a00; --warn-soft: #fbefdc; --bad: #c2362f; --bad-soft: #fbe9e7; --code-bg: #f1f5fa;
+  --bit: #d2423b; --bit-ink: #fff;
+  --hl-k: #8a2be2; --hl-s: #23774a; --hl-n: #b5530a; --hl-b: #2b59c3; --hl-c: #808a9c;
+  --font: "PT Serif", Georgia, "Times New Roman", serif; --display: "PT Serif", Georgia, serif; --ui: "PT Sans", "Segoe UI", system-ui, sans-serif; --mono: "PT Mono", ui-monospace, Consolas, monospace;
+  --r: 4px; --r-sm: 4px; --btn-r: 4px; --top-h: 54px; --shadow: none; --shadow-lg: 0 12px 32px rgba(28,43,74,.2); --bw: 1.5px;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root[data-design="note"]:not([data-theme="light"]) {
+  --bg: #121824; --panel: #161e2c; --panel2: #1b2435; --text: #dfe5ef; --muted: #98a2b5; --faint: #7a8498; --line: #2c374b; --line2: #3a4760; --grid: #1a2232;
+  --accent: #dfe5ef; --accent-hover: #ff7468; --accent-soft: #1f2a3e; --on-accent: #121824; --rule: #ff7468;
+  --ok: #6fd39a; --ok-soft: #173024; --warn: #f0b356; --warn-soft: #3a2d16; --bad: #ff7468; --bad-soft: #3a1f22; --code-bg: #182132;
+  --hl-k: #d6a3ff; --hl-s: #8fe0ad; --hl-n: #ffb37a; --hl-b: #9dbcff; --hl-c: #7a8498; --shadow-lg: 0 12px 32px rgba(0,0,0,.5); color-scheme: dark; } }
+:root[data-design="note"][data-theme="dark"] {
+  --bg: #121824; --panel: #161e2c; --panel2: #1b2435; --text: #dfe5ef; --muted: #98a2b5; --faint: #7a8498; --line: #2c374b; --line2: #3a4760; --grid: #1a2232;
+  --accent: #dfe5ef; --accent-hover: #ff7468; --accent-soft: #1f2a3e; --on-accent: #121824; --rule: #ff7468;
+  --ok: #6fd39a; --ok-soft: #173024; --warn: #f0b356; --warn-soft: #3a2d16; --bad: #ff7468; --bad-soft: #3a1f22; --code-bg: #182132;
+  --hl-k: #d6a3ff; --hl-s: #8fe0ad; --hl-n: #ffb37a; --hl-b: #9dbcff; --hl-c: #7a8498; --shadow-lg: 0 12px 32px rgba(0,0,0,.5); color-scheme: dark;
+}
+
+/* ===== общее ===== */
 * { box-sizing: border-box; }
 html, body { margin: 0; }
-body { background: var(--bg); color: var(--text); font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-a { color: var(--accent); }
-code, pre, .mono { font-family: ui-monospace, "Cascadia Mono", Consolas, "Liberation Mono", monospace; font-size: .92em; }
-code { background: var(--code-bg); padding: .08em .3em; border-radius: 4px; }
-pre { background: var(--code-bg); padding: 10px 12px; border-radius: 8px; overflow-x: auto; border: 1px solid var(--line); }
-pre code { background: none; padding: 0; }
-/* длинные фрагменты кода в тексте переносятся, а не растягивают страницу на узком экране */
-:not(pre) > code, .step .body, .pager button, .result { overflow-wrap: anywhere; }
-table { border-collapse: collapse; margin: 8px 0; display: block; overflow-x: auto; }
-th, td { border: 1px solid var(--line); padding: 4px 10px; text-align: left; vertical-align: top; }
-th { background: var(--panel2); }
-h1, h2, h3 { line-height: 1.25; }
-button { font: inherit; cursor: pointer; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--text); padding: 7px 14px; }
+html { -webkit-text-size-adjust: 100%; }
+body { background: var(--bg); color: var(--text); font: 500 16px/1.62 var(--font); -webkit-font-smoothing: antialiased; }
+a { color: var(--accent); text-underline-offset: 2px; }
+code, pre, .mono { font-family: var(--mono); font-size: .875em; font-variant-ligatures: none; }
+code { background: var(--code-bg); border: 1px solid var(--line); padding: .05em .35em; border-radius: 5px; }
+pre { background: var(--code-bg); padding: 12px 14px; border-radius: var(--r-sm); overflow-x: auto; border: 1px solid var(--line); line-height: 1.55; }
+pre code { background: none; border: none; padding: 0; font-size: 1em; }
+:not(pre) > code, .step .body, .result { overflow-wrap: anywhere; }
+table { border-collapse: collapse; margin: 10px 0; display: block; overflow-x: auto; font-size: 15px; }
+th, td { border: 1px solid var(--line); padding: 6px 12px; text-align: left; vertical-align: top; }
+th { background: var(--panel2); font-weight: 600; }
+h1, h2, h3, h4 { line-height: 1.25; overflow-wrap: break-word; hyphens: auto; }  /* длинные русские слова на узком экране переносятся */
+hr { border: none; border-top: 1px solid var(--line); margin: 20px 0; }
+blockquote { margin: 12px 0; padding: 8px 16px; border-left: 3px solid var(--accent); background: var(--accent-soft); border-radius: 0 var(--r-sm) var(--r-sm) 0; }
+button { font: 700 15px/1.3 var(--ui, var(--font)); cursor: pointer; border-radius: var(--btn-r); border: var(--bw) solid var(--line2); background: var(--panel); color: var(--text); padding: 9px 16px; transition: background-color .12s, border-color .12s, color .12s; }
 button:hover { border-color: var(--accent); }
-button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-:root[data-theme="dark"] button.primary { color: #10131a; }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) button.primary { color: #10131a; } }
-button:disabled { opacity: .55; cursor: default; }
-button.link { border: none; background: none; color: var(--accent); padding: 4px 6px; }
-input[type=text], input[type=number], textarea, select { font: inherit; color: var(--text); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; }
-input:focus, textarea:focus, select:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-
-/* каркас */
-.top { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: var(--panel); border-bottom: 1px solid var(--line); }
-.top .brand { font-weight: 700; white-space: nowrap; cursor: pointer; }
-.top .brand small { font-weight: 400; color: var(--muted); }
-.top .grow { flex: 1; }
-.top .score { white-space: nowrap; color: var(--muted); font-size: 14px; }
-.top .score b { color: var(--text); }
-.menu-btn { display: none; }
-.layout { display: grid; grid-template-columns: 300px minmax(0, 1fr); min-height: calc(100vh - 57px); }
-nav.side { border-right: 1px solid var(--line); background: var(--panel); padding: 12px 8px 40px; overflow-y: auto; position: sticky; top: 57px; height: calc(100vh - 57px); }
-.side .wk { margin: 4px 0 10px; }
-.side .wk-h { font-weight: 650; font-size: 14px; padding: 6px 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .02em; display: flex; justify-content: space-between; gap: 8px; }
-.side .wk-h span:last-child { font-weight: 500; text-transform: none; }
-.side a.ls { display: flex; gap: 8px; align-items: flex-start; padding: 7px 10px; border-radius: 8px; color: var(--text); text-decoration: none; font-size: 14.5px; line-height: 1.35; }
-.side a.ls:hover { background: var(--panel2); }
-.side a.ls.cur { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
-.side a.ls .dot { flex: none; width: 10px; height: 10px; border-radius: 50%; margin-top: 5px; border: 2px solid var(--line); }
-.side a.ls .dot.part { border-color: var(--warn); background: var(--warn-soft); }
-.side a.ls .dot.full { border-color: var(--ok); background: var(--ok); }
-main { padding: 24px 32px 80px; max-width: 920px; width: 100%; min-width: 0; }
-@media (max-width: 860px) {
-  .layout { grid-template-columns: minmax(0, 1fr); }  /* minmax: иначе длинная строка в pre растягивает всю страницу */
-  nav.side { position: fixed; left: 0; top: 57px; width: min(320px, 88vw); z-index: 30; transform: translateX(-105%); transition: transform .2s; box-shadow: var(--shadow); }
-  body.nav-open nav.side { transform: none; }
-  .menu-btn { display: inline-block; }
-  main { padding: 16px 16px 80px; }
-  .top .brand small, .top .hide-sm { display: none; }
-}
-@media (max-width: 520px) {
-  .top { gap: 6px; padding: 8px 10px; }
-  .top .score .nm { display: none; }  /* на телефоне шапка не вмещает имя: остаются баллы */
-  .top button { padding: 6px 10px; }
-}
-
-/* главная */
-.hero { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 20px 22px; box-shadow: var(--shadow); }
-.hero h1 { margin: 0 0 6px; font-size: 24px; }
-.hero p { margin: 6px 0; color: var(--muted); }
-.weeks { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; margin-top: 18px; }
-.wcard { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 8px; }
-.wcard h3 { margin: 0; font-size: 16.5px; }
-.wcard .n { color: var(--muted); font-size: 13px; text-transform: uppercase; letter-spacing: .03em; }
-.wcard ul { margin: 0; padding-left: 18px; font-size: 14px; color: var(--muted); }
-.wcard .go { margin-top: auto; align-self: flex-start; }
-.bar { height: 8px; border-radius: 6px; background: var(--panel2); overflow: hidden; }
-.bar > i { display: block; height: 100%; background: var(--ok); border-radius: 6px; }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+button.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); color: var(--on-accent); }
+button:disabled, button:disabled:hover { opacity: .5; cursor: default; }
+button.link { border: none; background: none; color: var(--accent); padding: 4px 6px; font-weight: 600; }
+button.link:hover { text-decoration: underline; }
+input[type=text], input[type=email], input[type=number], input[type=datetime-local], textarea, select { font: 500 16px var(--font); color: var(--text); background: var(--panel); border: var(--bw) solid var(--line2); border-radius: var(--r-sm); padding: 9px 12px; }
+input:focus, textarea:focus, select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+::selection { background: var(--accent-soft); }
 .small { font-size: 14px; color: var(--muted); }
+.loading { color: var(--muted); padding: 30px 0; }
 
-/* урок */
+/* шапка */
+.top { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 12px; height: var(--top-h); padding: 0 18px; background: var(--bg); border-bottom: 1px solid var(--line); }
+.top .brand { display: flex; align-items: center; gap: 10px; font: 700 18px var(--display); white-space: nowrap; cursor: pointer; min-width: 0; }
+.top .brand .logo { flex: none; width: 32px; height: 32px; border-radius: 10px; display: grid; place-items: center; background: var(--accent); color: var(--on-accent); font-size: 15px; }
+.top .brand small { font: 500 13px var(--font); color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
+.top .grow { flex: 1; }
+.top .score { white-space: nowrap; color: var(--muted); font-size: 14px; display: flex; align-items: center; gap: 10px; }
+.top .score b { color: var(--text); font-variant-numeric: tabular-nums; }
+.top .score .mini { width: 72px; height: 6px; border-radius: 3px; background: var(--panel2); overflow: hidden; }
+.top .score .mini > i { display: block; height: 100%; background: var(--ok); }
+.top button { padding: 7px 14px; white-space: nowrap; flex: none; font-size: 14px; }
+#moreBtn, .menu-btn { width: 38px; padding: 7px 0; font-size: 18px; line-height: 1; }
+.menu-btn { display: none; }
+#expBtn { display: none; }
+.show-sm { display: none; }
+.layout { display: grid; grid-template-columns: 300px minmax(0, 1fr); min-height: calc(100vh - var(--top-h)); }
+nav.side { border-right: 1px solid var(--line); background: var(--panel); padding: 12px 10px 48px; overflow-y: auto; position: sticky; top: var(--top-h); height: calc(100vh - var(--top-h)); scrollbar-width: thin; }
+main { padding: 28px 40px 96px; width: 100%; min-width: 0; margin: 0 auto; max-width: 940px; }
+.scrim { display: none; }
+.status { display: none; }
+
+/* меню курса (общая разметка, оформления меняют вид) */
+.side a.ls.home { display: block; margin: 0 0 8px; padding: 8px 10px; border-radius: var(--r-sm); font-weight: 700; color: var(--text); text-decoration: none; }
+.side a.ls.home.cur { background: var(--accent-soft); color: var(--accent); }
+.side .wk { margin: 2px 0; }
+.side .wk-h { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; gap: 2px 8px; align-items: start; padding: 8px 10px; border-radius: var(--r-sm); cursor: pointer; user-select: none; }
+.side .wk-h:hover { background: var(--panel2); }
+.side .chev { color: var(--faint); font-size: 11px; line-height: 20px; transition: transform .15s; }
+.side .wk.closed .chev { transform: rotate(-90deg); }
+.side .wl { min-width: 0; }
+.side .wn { display: block; font-size: 12px; font-weight: 700; color: var(--faint); line-height: 20px; }
+.side .wt { display: block; font-size: 14px; font-weight: 700; line-height: 1.3; }
+.side .wp { font-size: 12.5px; color: var(--faint); font-variant-numeric: tabular-nums; line-height: 20px; }
+.side .wp.full { color: var(--ok); }
+.side .wbar { grid-column: 2 / 4; height: 3px; border-radius: 2px; background: var(--panel2); overflow: hidden; margin-top: 4px; }
+.side .wbar > i { display: block; height: 100%; background: var(--ok); }
+.side .wk.closed a.ls, .side .wk.closed .files { display: none; }
+.side a.ls { display: flex; gap: 10px; align-items: flex-start; padding: 6px 10px 6px 12px; margin-left: 12px; border-left: 2px solid var(--line); color: var(--muted); text-decoration: none; font-size: 14px; line-height: 1.4; }
+.side a.ls:hover { color: var(--text); background: var(--panel2); }
+.side a.ls.cur { color: var(--accent); font-weight: 700; border-left-color: var(--accent); background: var(--accent-soft); }
+.side .dot { flex: none; width: 9px; height: 9px; border-radius: 50%; margin-top: 6px; border: 1.5px solid var(--line2); }
+.side .dot.part { border-color: var(--warn); background: linear-gradient(90deg, var(--warn) 50%, transparent 50%); }
+.side .dot.full { border-color: var(--ok); background: var(--ok); }
+.side .files { display: none; }
+
+/* значки типов шагов («файлы») */
+.fi { flex: none; width: 18px; height: 16px; border-radius: 3px; display: inline-grid; place-items: center; font: 700 9.5px/1 var(--mono); color: #fff; }
+.fi.md { background: #4a8fe0; } .fi.quiz { background: #a06ee8; } .fi.py { background: #e0a526; color: #1b1400; } .fi.parsons { background: #2fb39c; } .fi.txt { background: #7d8798; }
+
+/* урок: общие элементы */
 .crumbs { color: var(--muted); font-size: 14px; }
-.lesson-h { margin: 4px 0 6px; font-size: 26px; }
-.stepbar { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 18px; }
-.stepbar a { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 7px; border: 1px solid var(--line); background: var(--panel); text-decoration: none; color: var(--muted); font-size: 12.5px; }
-.stepbar a.task { border-width: 2px; }
-.stepbar a.part { border-color: var(--warn); background: var(--warn-soft); color: var(--warn); }
-.stepbar a.full { border-color: var(--ok); background: var(--ok-soft); color: var(--ok); }
-.step { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px 22px; margin: 0 0 16px; box-shadow: var(--shadow); scroll-margin-top: 70px; }
-.step-h { display: flex; justify-content: space-between; align-items: center; gap: 10px; color: var(--muted); font-size: 13px; margin-bottom: 4px; }
-.badge { font-size: 12.5px; padding: 2px 9px; border-radius: 99px; background: var(--panel2); color: var(--muted); white-space: nowrap; }
+.crumbs a { color: var(--muted); text-decoration: none; }
+.crumbs a:hover { color: var(--accent); }
+.lesson-h { margin: 6px 0 8px; font: 700 28px/1.2 var(--display); }
+.stepbar { display: flex; flex-wrap: wrap; gap: 6px; margin: 14px 0 22px; }
+.stepbar a { text-decoration: none; }
+.stepbar .fi, .stepbar .fn, .stepbar .tn { display: none; }
+.step { position: relative; background: var(--panel); border: var(--bw) solid var(--line); border-radius: var(--r); padding: 22px 28px 24px; margin: 0 0 16px; scroll-margin-top: calc(var(--top-h) + 14px); }
+.step-h { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 12px; }
+.step-h .num { display: none; }
+.step-h .kind { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--faint); font-weight: 600; }
+.step-h .kind .t { font-size: 12px; font-weight: 700; padding: 2px 9px; border-radius: 99px; background: var(--panel2); color: var(--muted); }
+.badge { font-size: 12.5px; font-weight: 700; padding: 3px 10px; border-radius: 99px; background: var(--panel2); color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .badge.full { background: var(--ok-soft); color: var(--ok); }
 .badge.part { background: var(--warn-soft); color: var(--warn); }
 .step .body > :first-child { margin-top: 0; }
-.step .body img { max-width: 100%; }
+.step .body > :last-child { margin-bottom: 0; }
+.step .body h2 { font-size: 1.3em; margin: 1.4em 0 .5em; }
+.step .body h3 { font-size: 1.12em; margin: 1.3em 0 .4em; }
+.step .body img { display: block; max-width: 100%; height: auto; margin: 1em 0; border-radius: var(--r-sm); background: #fff; padding: 8px; border: 1px solid var(--line); cursor: zoom-in; }
+.step .body li + li { margin-top: 3px; }
 .step p.hand { color: var(--muted); }
-.opts { display: flex; flex-direction: column; gap: 6px; margin: 10px 0; }
-.opt { display: flex; gap: 10px; align-items: flex-start; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; cursor: pointer; }
+.opts { display: flex; flex-direction: column; gap: 8px; margin: 14px 0; }
+.opt { display: flex; gap: 12px; align-items: flex-start; padding: 11px 14px; border: var(--bw) solid var(--line2); border-radius: var(--r-sm); cursor: pointer; background: var(--panel); transition: border-color .12s, background-color .12s; }
 .opt:hover { border-color: var(--accent); }
-.opt input { margin-top: 5px; }
+.opt:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+.opt input { margin-top: 5px; accent-color: var(--accent); flex: none; }
 .opt.sel-ok { border-color: var(--ok); background: var(--ok-soft); }
 .opt.sel-bad { border-color: var(--bad); background: var(--bad-soft); }
 .opt .fb { display: block; font-size: 14px; color: var(--muted); margin-top: 2px; }
 .opt p { margin: 0; }
-.actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
-.result { margin-top: 12px; padding: 10px 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel2); white-space: pre-wrap; overflow-wrap: anywhere; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 14px; }
+.result { margin-top: 14px; padding: 12px 16px; border-radius: var(--r-sm); border: 1px solid var(--line); border-left-width: 4px; background: var(--panel2); white-space: pre-wrap; font-size: 15px; }
 .result.ok { border-color: var(--ok); background: var(--ok-soft); }
 .result.part { border-color: var(--warn); background: var(--warn-soft); }
 .result.bad { border-color: var(--bad); background: var(--bad-soft); }
-.result .ttl { font-weight: 650; }
-.result pre { margin: 6px 0 0; background: var(--panel); white-space: pre-wrap; }
-.match-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; align-items: center; padding: 6px 0; border-bottom: 1px dashed var(--line); }
+.result .ttl { font-weight: 800; }
+.result.ok .ttl { color: var(--ok); } .result.part .ttl { color: var(--warn); } .result.bad .ttl { color: var(--bad); }
+.result pre { margin: 6px 0 8px; background: var(--panel); white-space: pre-wrap; }
+.match-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; align-items: center; padding: 8px 0; border-bottom: 1px dashed var(--line); }
 .match-row select { width: 100%; }
-@media (max-width: 600px) { .match-row { grid-template-columns: 1fr; gap: 4px; } }
-.parsons { list-style: none; padding: 0; margin: 10px 0; display: flex; flex-direction: column; gap: 6px; }
-.parsons li { display: flex; align-items: center; gap: 6px; background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 4px 6px; cursor: grab; }
+.parsons { list-style: none; padding: 0; margin: 14px 0; display: flex; flex-direction: column; gap: 6px; }
+.parsons li { display: flex; align-items: center; gap: 6px; background: var(--code-bg); border: 1px solid var(--line2); border-radius: var(--r-sm); padding: 4px 6px 4px 10px; cursor: grab; }
+.parsons li:hover { border-color: var(--accent); }
 .parsons li.drag { opacity: .4; }
-.parsons li .ln { flex: 1; white-space: pre; overflow-x: auto; font-family: ui-monospace, Consolas, monospace; font-size: 14.5px; padding: 4px 0; }
-.parsons li button { padding: 2px 8px; font-size: 13px; }
+.parsons li .ln { flex: 1; white-space: pre; overflow-x: auto; font-family: var(--mono); font-size: 14px; padding: 4px 0; }
+.parsons li button { padding: 4px 10px; font-size: 13px; }
 .dataset pre { max-height: 260px; overflow: auto; }
 .answer { width: 100%; }
-.io { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; margin: 10px 0; }
-.io > div > div { font-size: 13px; color: var(--muted); margin-bottom: 2px; }
+.io { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; margin: 16px 0 0; }
+.io > div > div { font-size: 12.5px; font-weight: 700; color: var(--faint); margin-bottom: 4px; }
 .io pre { margin: 0; white-space: pre-wrap; }
-@media (max-width: 600px) { .io { grid-template-columns: minmax(0, 1fr); } .step { padding: 14px 14px; } main { padding: 12px 10px 80px; } }
-.editor { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; margin-top: 10px; }
-.editor textarea { width: 100%; min-height: 200px; border: none; border-radius: 0; background: var(--code-bg); font-family: ui-monospace, Consolas, monospace; font-size: 14.5px; tab-size: 4; resize: vertical; }
-.CodeMirror { height: auto; min-height: 180px; font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 14.5px; background: var(--code-bg); color: var(--text); }
-.CodeMirror-scroll { min-height: 180px; max-height: 520px; }
-.CodeMirror-gutters { background: var(--panel2); border-right: 1px solid var(--line); }
-.CodeMirror-linenumber { color: var(--muted); }
-.CodeMirror-cursor { border-left-color: var(--text); }
+.editor { border: var(--bw) solid var(--line2); border-radius: var(--r-sm); overflow: hidden; margin-top: 16px; background: var(--code-bg); }
+.editor:focus-within { border-color: var(--accent); }
+.editor .ed-h { display: flex; justify-content: space-between; align-items: center; padding: 7px 12px; font-size: 12.5px; font-weight: 700; color: var(--faint); background: var(--panel2); border-bottom: 1px solid var(--line); }
+.editor textarea { display: block; width: 100%; min-height: 200px; border: none; border-radius: 0; background: var(--code-bg); font-family: var(--mono); font-size: 14px; tab-size: 4; resize: vertical; box-shadow: none; }
+.CodeMirror { height: auto; min-height: 180px; font-family: var(--mono); font-size: 14.5px; line-height: 1.6; background: var(--code-bg); color: var(--text); }
+.CodeMirror-scroll { min-height: 180px; max-height: 560px; }
+.CodeMirror-gutters { background: var(--code-bg); border-right: 1px solid var(--line); }
+.CodeMirror-linenumber { color: var(--faint); padding: 0 10px 0 6px; }
+.CodeMirror-lines { padding: 8px 0; }
+.CodeMirror-cursor { border-left: 2px solid var(--accent); }
 .CodeMirror-selected { background: var(--accent-soft) !important; }
-.cm-s-default .cm-keyword { color: #a1379b; } .cm-s-default .cm-def { color: #2453b5; } .cm-s-default .cm-string { color: #23824b; }
-.cm-s-default .cm-number { color: #9c5b00; } .cm-s-default .cm-comment { color: #7a828f; } .cm-s-default .cm-builtin { color: #2b7a8c; } .cm-s-default .cm-variable-2 { color: var(--text); }
-:root[data-theme="dark"] .cm-s-default .cm-keyword { color: #d88cf0; } :root[data-theme="dark"] .cm-s-default .cm-def { color: #8fb1ff; }
-:root[data-theme="dark"] .cm-s-default .cm-string { color: #7fd29c; } :root[data-theme="dark"] .cm-s-default .cm-number { color: #f0b46a; }
-:root[data-theme="dark"] .cm-s-default .cm-builtin { color: #6fc6d8; } :root[data-theme="dark"] .cm-s-default .cm-variable { color: var(--text); }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .cm-s-default .cm-keyword { color: #d88cf0; } :root:not([data-theme="light"]) .cm-s-default .cm-def { color: #8fb1ff; }
-  :root:not([data-theme="light"]) .cm-s-default .cm-string { color: #7fd29c; } :root:not([data-theme="light"]) .cm-s-default .cm-number { color: #f0b46a; }
-  :root:not([data-theme="light"]) .cm-s-default .cm-builtin { color: #6fc6d8; } :root:not([data-theme="light"]) .cm-s-default .cm-variable { color: var(--text); }
-}
-details.run { margin-top: 10px; }
-details.run summary { cursor: pointer; color: var(--accent); font-size: 14.5px; }
-details.run textarea { width: 100%; min-height: 70px; margin-top: 6px; font-family: ui-monospace, Consolas, monospace; font-size: 14px; }
-.pystat { font-size: 13px; color: var(--muted); }
+.cm-s-default .cm-keyword { color: var(--hl-k); } .cm-s-default .cm-def { color: var(--hl-b); } .cm-s-default .cm-string { color: var(--hl-s); }
+.cm-s-default .cm-number { color: var(--hl-n); } .cm-s-default .cm-comment { color: var(--hl-c); } .cm-s-default .cm-builtin { color: var(--hl-b); }
+.cm-s-default .cm-variable, .cm-s-default .cm-variable-2, .cm-s-default .cm-property, .cm-s-default .cm-operator { color: var(--text); }
+details.run { margin-top: 14px; border-top: 1px dashed var(--line); padding-top: 12px; }
+details.run summary { cursor: pointer; color: var(--accent); font-size: 14.5px; font-weight: 600; }
+details.run textarea { width: 100%; min-height: 70px; margin-top: 8px; font-family: var(--mono); font-size: 14px; }
+.pystat { font-size: 12.5px; color: var(--faint); margin-top: 10px; }
 .pystat.err { color: var(--bad); }
-.pager { display: flex; justify-content: space-between; gap: 10px; margin-top: 22px; }
-.pager button { max-width: 48%; text-align: left; }
-
-/* модальные окна */
-.modal { position: fixed; inset: 0; background: rgba(10,14,22,.55); display: grid; place-items: center; z-index: 50; padding: 16px; }
-.modal .box { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 22px; width: min(560px, 100%); max-height: 90vh; overflow: auto; }
-.modal .box.wide { width: min(860px, 100%); }
-.modal h2 { margin-top: 0; }
-.modal textarea { width: 100%; min-height: 320px; font-family: ui-monospace, Consolas, monospace; font-size: 13px; }
-.menu { position: absolute; right: 12px; top: 52px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.15); padding: 6px; display: flex; flex-direction: column; min-width: 240px; z-index: 40; }
-.menu button { border: none; text-align: left; background: none; padding: 9px 12px; }
-.menu button:hover { background: var(--panel2); }
-.toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: var(--text); color: var(--bg); padding: 9px 16px; border-radius: 10px; z-index: 60; font-size: 14.5px; }
-/* платформа: дополнения к оформлению самоучителя */
-.side .wk-h { cursor: pointer; border-radius: 8px; }
-.side .wk-h:hover { background: var(--panel2); }
-.side .wk.closed a.ls { display: none; }
-.side .wk-h .chev { margin-right: 4px; display: inline-block; transition: transform .15s; }
-.side .wk.closed .chev { transform: rotate(-90deg); }
-.timer { font-variant-numeric: tabular-nums; font-weight: 650; }
+.timer { font-variant-numeric: tabular-nums; font-weight: 700; }
 .timer.low { color: var(--bad); }
-.loading { color: var(--muted); padding: 30px 0; }
+.seg { display: none; }
+.stepnav { display: none; }
+.pager { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; margin-top: 28px; }
+.pager button { display: flex; flex-direction: column; gap: 2px; text-align: left; padding: 12px 16px; border-radius: var(--r-sm); background: var(--panel); }
+.pager button .pl { font-size: 12.5px; font-weight: 600; color: var(--faint); }
+.pager button.primary { background: var(--accent); }
+.pager button.primary .pl { color: inherit; opacity: .8; }
+.pager button.nx { grid-column: 2; text-align: right; align-items: flex-end; }
+
+/* окна, меню, уведомления */
+.modal { position: fixed; inset: 0; background: rgba(10,13,20,.55); display: grid; place-items: center; z-index: 50; padding: 16px; }
+.modal .box { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 24px 26px; width: min(560px, 100%); max-height: 90vh; overflow: auto; box-shadow: var(--shadow-lg); }
+.modal .box.wide { width: min(880px, 100%); }
+.modal h2 { margin-top: 0; font-family: var(--display); }
+.modal textarea { width: 100%; min-height: 320px; font-family: var(--mono); font-size: 13px; }
+.modal.zoom { cursor: zoom-out; }
+.modal.zoom img { max-width: 100%; max-height: 92vh; background: #fff; border-radius: var(--r-sm); padding: 10px; }
+.menu { position: fixed; right: 12px; top: calc(var(--top-h) - 4px); background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-sm); box-shadow: var(--shadow-lg); padding: 6px; display: flex; flex-direction: column; min-width: 260px; z-index: 40; }
+.menu button { border: none; text-align: left; background: none; padding: 9px 12px; border-radius: 6px; color: var(--text); font-weight: 500; }
+.menu button:hover { background: var(--panel2); }
+.menu .mh { font-size: 12px; font-weight: 700; color: var(--faint); padding: 8px 12px 2px; }
+.menu .sep { border-top: 1px solid var(--line); margin: 6px 0; }
+.toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); background: var(--text); color: var(--bg); padding: 10px 18px; border-radius: 10px; z-index: 60; font-size: 14.5px; box-shadow: var(--shadow-lg); max-width: calc(100vw - 32px); }
 .who { font-size: 14px; color: var(--muted); white-space: nowrap; }
 .who b { color: var(--text); }
-table.grade { display: table; font-size: 14px; white-space: nowrap; }
-table.grade td:first-child { white-space: normal; min-width: 160px; }
-table.grade td, table.grade th { padding: 4px 8px; }
-.step > summary { cursor: pointer; }
+/* выбор оформления */
+.pick { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 16px 0 6px; }
+.pick button { display: flex; flex-direction: column; align-items: stretch; gap: 8px; text-align: left; padding: 12px; font-weight: 500; }
+.pick button.on { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.pick .sw { display: flex; height: 54px; border-radius: 8px; overflow: hidden; border: 1px solid var(--line); }
+.pick .sw i { flex: 1; }
+.pick b { font-size: 15px; }
+.pick span { font-size: 13px; color: var(--muted); line-height: 1.4; }
+@media (max-width: 600px) { .pick { grid-template-columns: 1fr; } .pick .sw { height: 30px; } }
+
+/* общие блоки главной */
+.hero { background: var(--panel); border: var(--bw) solid var(--line); border-radius: var(--r); padding: 26px 28px; }
+.hero h1 { margin: 0 0 10px; font: 700 clamp(26px, 3.4vw, 36px)/1.2 var(--display); }
+.hero p { margin: 6px 0; color: var(--muted); }
+.bar { height: 6px; border-radius: 4px; background: var(--panel2); overflow: hidden; }
+.bar > i { display: block; height: 100%; background: var(--ok); border-radius: 4px; }
+.sec-h { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 36px 2px 10px; }
+.sec-h h2 { margin: 0; font: 700 21px var(--display); }
+
+/* ведомость */
+table.grade { display: table; font-size: 14px; white-space: nowrap; background: var(--panel); border-radius: var(--r-sm); overflow: hidden; border: 1px solid var(--line); border-collapse: separate; border-spacing: 0; }
+table.grade th, table.grade td { border: none; border-bottom: 1px solid var(--line); padding: 8px 10px; }
+table.grade tr:last-child td { border-bottom: none; }
+table.grade th { position: sticky; top: 0; font-size: 12.5px; color: var(--muted); }
+table.grade td:first-child { white-space: normal; min-width: 180px; }
+table.grade td:not(:first-child):not(:nth-child(2)) { text-align: right; font-variant-numeric: tabular-nums; }
+table.grade tr:hover td { background: var(--panel2); }
+.step > summary { cursor: pointer; padding: 2px 0; }
+.step[open] > summary { margin-bottom: 10px; }
+/* экран входа: без меню курса, форма по центру */
+body.bare .layout { grid-template-columns: minmax(0, 1fr) !important; }
+body.bare nav.side, body.bare .menu-btn, body.bare #expBtn, body.bare .status { display: none !important; }
+body.bare main { max-width: 620px; padding-top: 12vh; }
+.eyebrow { font-size: 13px; font-weight: 700; color: var(--accent); margin-bottom: 8px; }
+
+@media (max-width: 860px) {
+  .layout { grid-template-columns: minmax(0, 1fr); }
+  nav.side { position: fixed; left: 0; top: var(--top-h); width: min(330px, 88vw); z-index: 30; transform: translateX(-105%); transition: transform .22s ease; box-shadow: var(--shadow-lg); }
+  body.nav-open nav.side { transform: none; }
+  body.nav-open .scrim { display: block; position: fixed; inset: var(--top-h) 0 0 0; background: rgba(10,13,20,.45); z-index: 25; }
+  .menu-btn { display: inline-block; }
+  main { padding: 20px 16px 96px; }
+  .top { padding: 0 10px; gap: 8px; }
+  .top .brand small, .top .hide-sm, .top .score .mini { display: none; }
+  .show-sm { display: inline; }
+}
+@media (max-width: 600px) {
+  .io, .match-row { grid-template-columns: minmax(0, 1fr); }
+  .step { padding: 16px 16px 18px; }
+  main { padding: 14px 12px 96px; }
+  .pager { grid-template-columns: 1fr; } .pager button.nx { grid-column: 1; text-align: left; align-items: flex-start; }
+}
+@media (max-width: 520px) { .top .score .nm { display: none; } .top button { padding: 7px 11px; } }
+@media (max-width: 400px) { .top .brand > span:not(.logo) { display: none; } }
+
+/* ===== ОФОРМЛЕНИЕ «КЛЮЧ» ===== */
+/* меню курса — выдвижное на любой ширине; урок — по одному шагу, кнопки снизу под пальцем */
+:root[data-design="key"] .layout, :root[data-design="note"] .layout { grid-template-columns: minmax(0, 1fr); }
+:root[data-design="key"] nav.side, :root[data-design="note"] nav.side { position: fixed; left: 0; top: var(--top-h); width: min(340px, 88vw); z-index: 30; transform: translateX(-105%); transition: transform .22s ease; box-shadow: var(--shadow-lg); }
+:root[data-design="key"] body.nav-open nav.side, :root[data-design="note"] body.nav-open nav.side { transform: none; }
+:root[data-design="key"] body.nav-open .scrim, :root[data-design="note"] body.nav-open .scrim { display: block; position: fixed; inset: var(--top-h) 0 0 0; background: rgba(10,13,20,.45); z-index: 25; }
+:root[data-design="key"] .menu-btn, :root[data-design="note"] .menu-btn { display: inline-block; }
+:root[data-design="key"] .top { border-bottom: none; }
+:root[data-design="key"] .top .brand { text-transform: lowercase; }
+:root[data-design="key"] .top .brand small { display: none; }
+:root[data-design="key"] main { max-width: 1120px; }
+:root[data-design="key"] main.in-lesson { max-width: 800px; }
+:root[data-design="key"] h1, :root[data-design="key"] h2, :root[data-design="key"] h3 { letter-spacing: -.01em; }
+:root[data-design="key"] .lesson-h { font-size: clamp(22px, 3vw, 30px); }
+:root[data-design="key"] .stepbar { position: sticky; top: var(--top-h); z-index: 6; background: var(--bg); flex-wrap: nowrap; gap: 5px; padding: 10px 0; margin: 6px 0 14px; }
+:root[data-design="key"] .stepbar a { flex: 1; height: 10px; border-radius: 5px; background: var(--line); min-width: 0; }
+:root[data-design="key"] .stepbar a:not(.task) { flex: .45; }
+:root[data-design="key"] .stepbar a.full { background: var(--ok); }
+:root[data-design="key"] .stepbar a.part { background: var(--warn); }
+:root[data-design="key"] .stepbar a.cur { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent); }
+:root[data-design="key"] .stepbar .sn { display: none; }
+:root[data-design="key"] .step { display: none; flex-direction: column; border-radius: 24px; padding: 26px 30px 0; }
+:root[data-design="key"] .step.cur { display: flex; }
+:root[data-design="key"] .step > *, :root[data-design="key"] .step .work > * { order: 0; }
+:root[data-design="key"] .step .result { order: 1; }
+:root[data-design="key"] .step > .actions, :root[data-design="key"] .step .work > .actions { order: 2; }
+:root[data-design="key"] .step .stepnav, :root[data-design="key"] .step > .pystat { order: 3; }
+:root[data-design="key"] .step > .actions { position: sticky; bottom: 0; z-index: 3; background: var(--panel); margin: 16px -30px 0; padding: 14px 30px; border-top: var(--bw) solid var(--line); }
+:root[data-design="key"] .step .kind .t { background: var(--accent-soft); color: var(--accent); }
+:root[data-design="key"] .opt { padding: 14px 16px; border-radius: 16px; font-weight: 600; }
+:root[data-design="key"] .opt input { width: 19px; height: 19px; margin-top: 3px; }
+:root[data-design="key"] button { padding: 12px 20px; }
+:root[data-design="key"] .top button, :root[data-design="key"] .parsons li button, :root[data-design="key"] .menu button { padding: 7px 12px; }
+:root[data-design="key"] .actions button.primary { min-width: 160px; }
+:root[data-design="key"] .stepnav { display: flex; justify-content: space-between; gap: 10px; padding: 16px 0 22px; margin-top: 8px; }
+:root[data-design="key"] .stepnav button { background: none; }
+:root[data-design="key"] .stepnav .nx { margin-left: auto; }
+:root[data-design="key"] .pager { display: none; }
+:root[data-design="key"] .crumbs { display: none; }
+@media (min-width: 1100px) {
+  :root[data-design="key"] main.in-lesson.wide { max-width: 1240px; }
+  :root[data-design="key"] .step.split.cur { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 0 32px; align-items: start; }
+  :root[data-design="key"] .step.split .stepnav { grid-column: 1 / -1; }
+  :root[data-design="key"] .step.split .work { position: sticky; top: calc(var(--top-h) + 44px); display: flex; flex-direction: column; padding-bottom: 20px; }
+  :root[data-design="key"] .step.split .editor { margin-top: 0; }
+  :root[data-design="key"] .step.split .work > .actions { order: 1; }
+  :root[data-design="key"] .step.split .work > .result { order: 2; }
+  :root[data-design="key"] .step.split .work > details.run, :root[data-design="key"] .step.split .work > .pystat { order: 3; }
+  :root[data-design="key"] .step.split .CodeMirror, :root[data-design="key"] .step.split .CodeMirror-scroll { min-height: 320px; }
+}
+/* главная «Ключ» */
+.kh { background: var(--panel); border: var(--bw) solid var(--line); border-radius: 28px; padding: 32px 34px; display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 34px; }
+.kh h1 { font: 700 clamp(26px, 3.4vw, 38px)/1.2 var(--display); margin: 0 0 12px; }
+.kh p { color: var(--muted); margin: 0 0 22px; max-width: 34em; }
+.dump { display: grid; grid-template-columns: auto repeat(8, 34px) auto; gap: 6px; align-items: center; margin: 0 0 18px; width: max-content; max-width: 100%; }
+.dump .off, .dump .hx { font: 600 14px var(--mono); color: var(--muted); }
+.dump .off { padding-right: 8px; }
+.dump .hx { padding-left: 12px; color: var(--text); min-width: 3.2em; }
+.dump .hx.zero { color: var(--muted); }
+.bit { position: relative; width: 34px; height: 40px; border-radius: 9px; display: grid; place-items: center; font: 700 15px var(--mono); background: var(--code-bg); color: var(--muted); border: 1.5px solid var(--line); text-decoration: none; }
+.bit.on { background: var(--bit); color: var(--bit-ink); border-color: var(--bit); }
+.bit.half { background: linear-gradient(0deg, var(--bit) 42%, var(--code-bg) 42%); color: var(--text); border-color: var(--bit); }
+.bit:hover { border-color: var(--accent); z-index: 1; }
+.bit .w { position: absolute; top: -9px; left: -3px; font: 700 10px var(--font); background: var(--accent); color: var(--on-accent); border-radius: 5px; padding: 0 4px; line-height: 15px; }
+.hex { font: 600 15px var(--mono); color: var(--muted); }
+.hex b { color: var(--text); }
+@media (prefers-reduced-motion: no-preference) {
+  .dump.anim .bit.on { animation: lit .35s ease-out backwards; animation-delay: calc(var(--i) * 45ms + 150ms); }
+  @keyframes lit { from { background: var(--code-bg); border-color: var(--line); color: var(--muted); transform: scale(.85); } }
+  .bit.new { animation: pop .7s cubic-bezier(.2, 1.6, .4, 1) .35s backwards; box-shadow: 0 0 0 4px var(--accent-soft); }
+  @keyframes pop { 0% { background: var(--code-bg); border-color: var(--line); color: var(--muted); transform: scale(.6); } 60% { transform: scale(1.18); } }
+}
+.now { background: var(--accent-soft); border-radius: 20px; padding: 22px; align-self: start; }
+.now .w { font-size: 14px; color: var(--muted); }
+.now h2 { font: 700 19px/1.3 var(--display); margin: 4px 0 14px; }
+.now .dots { display: flex; gap: 6px; margin: 0 0 18px; flex-wrap: wrap; }
+.now .dots i { width: 22px; height: 8px; border-radius: 4px; background: var(--panel); }
+.now .dots i.ok { background: var(--ok); }
+.now .dots i.th { width: 10px; background: var(--line); }
+.now button { width: 100%; }
+.now .sum { font-size: 14px; color: var(--muted); margin-top: 14px; }
+.route .wk { display: grid; grid-template-columns: 64px minmax(0, 1fr) auto; gap: 4px 18px; align-items: center; padding: 16px 4px; border-bottom: 2px solid var(--line); text-decoration: none; color: inherit; }
+.route .wk:hover .t { color: var(--accent); }
+.route .n { font: 700 30px var(--display); color: var(--line2); }
+.route .wk.has .n { color: var(--accent); }
+.route .t { font-weight: 800; font-size: 17px; }
+.route .ls { font-size: 14px; color: var(--muted); }
+.route .sc { font-weight: 800; font-size: 15px; text-align: right; white-space: nowrap; }
+.route .sc small { display: block; font-weight: 500; color: var(--muted); font-size: 13px; }
+.mini-bits { display: flex; gap: 3px; margin-top: 6px; }
+.mini-bits i { width: 12px; height: 12px; border-radius: 3px; background: var(--code-bg); border: 1.5px solid var(--line); }
+.mini-bits i.on { background: var(--bit); border-color: var(--bit); }
+.mini-bits i.half { background: linear-gradient(0deg, var(--bit) 45%, var(--code-bg) 45%); border-color: var(--bit); }
+.fin h2 { font: 700 clamp(22px, 3vw, 30px)/1.25 var(--display); }
+.fin .dump { margin: 22px 0 14px; }
+@media (max-width: 860px) { .kh { grid-template-columns: minmax(0, 1fr); padding: 22px 18px; border-radius: 22px; gap: 20px; } :root[data-design="key"] .step { padding: 18px 16px 0; border-radius: 18px; } :root[data-design="key"] .step > .actions { margin: 16px -16px 0; padding: 12px 16px; } }
+@media (max-width: 480px) { .dump { grid-template-columns: auto repeat(8, minmax(0, 1fr)) auto; gap: 4px; width: 100%; } .bit { width: auto; height: 34px; font-size: 13px; border-radius: 7px; } .dump .off { padding-right: 2px; font-size: 12px; } .dump .hx { padding-left: 4px; font-size: 12px; min-width: 0; } .route .wk { grid-template-columns: 40px minmax(0, 1fr) auto; gap: 2px 12px; } .route .n { font-size: 22px; } .route .ls { display: none; } :root[data-design="key"] .actions button.primary { flex: 1; min-width: 0; } }
+
+/* ===== ОФОРМЛЕНИЕ «РАБОЧЕЕ МЕСТО» ===== */
+:root[data-design="ide"] body { font-size: 15px; font-weight: 400; padding-bottom: 26px; }
+:root[data-design="ide"] .top { background: var(--panel); padding: 0 12px; }
+:root[data-design="ide"] .top .brand { font: 600 15px var(--mono); color: var(--accent); }
+:root[data-design="ide"] .top .brand .logo { display: none; }
+:root[data-design="ide"] .top .brand > span:not(.logo)::after { content: "/"; }
+:root[data-design="ide"] .top .brand > span:not(.logo) { text-transform: lowercase; }
+:root[data-design="ide"] .top .brand small { font-family: var(--font); }
+:root[data-design="ide"] .top button { padding: 5px 11px; font-size: 13px; }
+:root[data-design="ide"] .top .score { display: none; }
+:root[data-design="ide"] #expBtn { display: inline-block; background: none; border-color: transparent; color: var(--muted); padding: 4px 8px; }
+:root[data-design="ide"] #expBtn:hover { color: var(--text); border-color: var(--line); }
+:root[data-design="ide"] .layout { grid-template-columns: 290px minmax(0, 1fr); min-height: calc(100vh - var(--top-h) - 26px); }
+:root[data-design="ide"] body.noexp .layout { grid-template-columns: 0 minmax(0, 1fr); }
+:root[data-design="ide"] body.noexp nav.side { visibility: hidden; }
+:root[data-design="ide"] nav.side { height: calc(100vh - var(--top-h) - 26px); padding: 6px 0 30px; font-size: 13.5px; }
+:root[data-design="ide"] .side a.ls.home { margin: 0 6px 6px; padding: 5px 10px; font-weight: 600; }
+:root[data-design="ide"] .side .wk-h { padding: 3px 12px; border-radius: 0; grid-template-columns: 12px minmax(0, 1fr) auto; }
+:root[data-design="ide"] .side .wn { display: inline; font: 600 12.5px var(--mono); color: var(--muted); line-height: 1.6; }
+:root[data-design="ide"] .side .wn::after { content: " "; }
+:root[data-design="ide"] .side .wt { display: inline; font-size: 13px; font-weight: 600; }
+:root[data-design="ide"] .side .wl { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+:root[data-design="ide"] .side .wp { font-family: var(--mono); font-size: 12px; line-height: 1.6; }
+:root[data-design="ide"] .side .wbar { display: none; }
+:root[data-design="ide"] .side a.ls { margin-left: 0; border-left: none; padding: 3px 12px 3px 26px; font-size: 13px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; gap: 7px; align-items: center; }
+:root[data-design="ide"] .side a.ls > span:last-child { overflow: hidden; text-overflow: ellipsis; }
+:root[data-design="ide"] .side a.ls.cur { background: var(--panel2); color: var(--text); box-shadow: inset 2px 0 var(--accent); }
+:root[data-design="ide"] .side .dot { margin-top: 0; }
+:root[data-design="ide"] .side .files { display: block; }
+:root[data-design="ide"] .side .files a { display: flex; align-items: center; gap: 7px; padding: 3px 12px 3px 42px; color: var(--text); text-decoration: none; font-size: 12.5px; font-family: var(--mono); white-space: nowrap; }
+:root[data-design="ide"] .side .files a:hover { background: var(--panel2); }
+:root[data-design="ide"] .side .files a.cur { background: var(--accent-soft); box-shadow: inset 2px 0 var(--accent); }
+:root[data-design="ide"] .side .files .nm { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+:root[data-design="ide"] .side .files .ok { color: var(--ok); }
+:root[data-design="ide"] main { max-width: none; padding: 0 0 60px; }
+:root[data-design="ide"] main > :not(.stepbar):not(.step):not(.ws) { margin-left: 32px; margin-right: 32px; max-width: 900px; }
+:root[data-design="ide"] main > .crumbs { margin-top: 18px; font-family: var(--mono); font-size: 12.5px; }
+:root[data-design="ide"] main > .loading { margin-top: 18px; }
+:root[data-design="ide"] .lesson-h { font-size: 22px; margin-bottom: 4px; }
+:root[data-design="ide"] .stepbar { position: sticky; top: var(--top-h); z-index: 6; flex-wrap: nowrap; overflow-x: auto; gap: 0; margin: 12px 0 0; background: var(--panel); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); scrollbar-width: thin; }
+:root[data-design="ide"] .stepbar a { display: flex; align-items: center; gap: 6px; padding: 8px 14px; border-right: 1px solid var(--line); color: var(--muted); font: 12.5px var(--mono); white-space: nowrap; }
+:root[data-design="ide"] .stepbar a .fi { display: inline-grid; }
+:root[data-design="ide"] .stepbar a .fn { display: inline; }
+:root[data-design="ide"] .stepbar a .sn { display: none; }
+:root[data-design="ide"] .stepbar a.cur { background: var(--bg); color: var(--text); box-shadow: inset 0 2px var(--accent); }
+:root[data-design="ide"] .stepbar a.full .fn::after { content: " ✓"; color: var(--ok); }
+:root[data-design="ide"] .stepbar a.part .fn::after { content: " ●"; color: var(--warn); }
+:root[data-design="ide"] .step { display: none; border: none; border-radius: 0; background: none; padding: 22px 32px 10px; margin: 0; }
+:root[data-design="ide"] .step.cur { display: block; }
+:root[data-design="ide"] .step:not(.split) > * { max-width: 780px; }
+:root[data-design="ide"] .step-h .kind .t { border-radius: 3px; font-family: var(--mono); font-weight: 600; }
+:root[data-design="ide"] .badge { border-radius: 3px; font-family: var(--mono); font-weight: 600; background: none; border: 1px solid var(--line); }
+:root[data-design="ide"] .badge.full { border-color: var(--ok); background: none; }
+:root[data-design="ide"] .badge.part { border-color: var(--warn); background: none; }
+:root[data-design="ide"] .opt { padding: 9px 12px; }
+:root[data-design="ide"] .result { font-family: var(--mono); font-size: 13.5px; border-left-width: 3px; }
+:root[data-design="ide"] .result .ttl { font-family: var(--font); }
+:root[data-design="ide"] .stepnav { display: flex; justify-content: flex-end; gap: 10px; max-width: 780px; margin-top: 28px; padding-top: 14px; border-top: 1px solid var(--line); }
+:root[data-design="ide"] .pager { display: none; }
+:root[data-design="ide"] .ws { padding: 26px 32px 40px; }
+@media (min-width: 1000px) {
+  :root[data-design="ide"] .step.split.cur { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 0; padding: 0; align-items: start; }
+  :root[data-design="ide"] .step.split .cond { padding: 22px 26px 30px 32px; border-right: 1px solid var(--line); }
+  :root[data-design="ide"] .step.split .work { position: sticky; top: calc(var(--top-h) + 36px); background: var(--code-bg); max-height: calc(100vh - var(--top-h) - 36px - 26px); overflow-y: auto; display: flex; flex-direction: column; }
+  :root[data-design="ide"] .step.split .editor { margin: 0; border: none; border-bottom: 1px solid var(--line); border-radius: 0; }
+  :root[data-design="ide"] .step.split .work > .actions { margin: 0; padding: 8px 12px; background: var(--panel); border-bottom: 1px solid var(--line); }
+  :root[data-design="ide"] .step.split .work > .result { margin: 0; border-radius: 0; border: none; border-left: 3px solid var(--line); }
+  :root[data-design="ide"] .step.split .work > .result.bad { border-left-color: var(--bad); }
+  :root[data-design="ide"] .step.split .work > .result.ok { border-left-color: var(--ok); }
+  :root[data-design="ide"] .step.split .work > details.run, :root[data-design="ide"] .step.split .work > .pystat { margin: 0; padding: 10px 14px; }
+  :root[data-design="ide"] .step.split .CodeMirror, :root[data-design="ide"] .step.split .CodeMirror-scroll { min-height: 300px; }
+  :root[data-design="ide"] .step.split .stepnav { grid-column: 1; margin: 0 26px 30px 32px; max-width: none; }
+}
+:root[data-design="ide"] .status { display: flex; position: fixed; left: 0; right: 0; bottom: 0; height: 26px; z-index: 20; align-items: center; gap: 18px; padding: 0 12px; background: var(--panel); border-top: 1px solid var(--line); font: 12px var(--mono); color: var(--muted); white-space: nowrap; overflow: hidden; }
+:root[data-design="ide"] .status .pystat { margin: 0; font-size: 12px; }
+:root[data-design="ide"] .status .pystat::before { content: "● "; color: var(--ok); }
+:root[data-design="ide"] .status .pystat.err::before { color: var(--bad); }
+:root[data-design="ide"] .status .grow { flex: 1; }
+:root[data-design="ide"] .status b { color: var(--text); }
+/* стартовая «README» и «Проблемы» */
+.ws-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 420px); gap: 36px; max-width: 1160px; }
+.ws h1 { font: 700 30px/1.2 var(--display); margin: 0 0 10px; }
+.ws h2 { font-size: 13px; color: var(--muted); font-weight: 600; margin: 26px 0 8px; }
+.ws p { color: var(--muted); }
+.md-h { position: relative; }
+.md-h::before { content: attr(data-h); position: absolute; right: 100%; margin-right: 10px; font: 500 .7em var(--mono); color: var(--line2); top: .35em; }
+.resume { border: 1px solid var(--line); border-left: 3px solid var(--accent); background: var(--panel); border-radius: var(--r-sm); padding: 14px 16px; }
+.resume .w { font-size: 13px; color: var(--muted); }
+.resume .t { font-weight: 600; font-size: 16px; margin: 2px 0 12px; }
+.prog { font: 13px/1.9 var(--mono); }
+.prog a { display: grid; grid-template-columns: 2.2em minmax(0, 1fr) auto auto; gap: 10px; color: var(--text); text-decoration: none; padding: 0 6px; border-radius: 3px; }
+.prog a:hover { background: var(--panel2); }
+.prog .n { color: var(--muted); text-align: right; }
+.prog .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font); }
+.prog .b8 { color: var(--accent); letter-spacing: -1px; }
+.prog .b8 i { color: var(--line); font-style: normal; }
+.prog .p { color: var(--muted); min-width: 4.5em; text-align: right; }
+.keys { font-size: 13.5px; color: var(--muted); display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; align-items: center; }
+kbd { font: 12px var(--mono); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 3px; padding: 0 4px; color: var(--muted); }
+.problems { border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--panel); align-self: start; }
+.problems .ph { display: flex; gap: 14px; padding: 7px 12px; border-bottom: 1px solid var(--line); font-size: 12px; color: var(--muted); }
+.problems .ph b { color: var(--text); font-weight: 600; border-bottom: 2px solid var(--accent); padding-bottom: 5px; }
+.problems .ph .cnt { background: var(--panel2); border-radius: 9px; padding: 0 7px; margin-left: 4px; }
+.problems a { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 2px 8px; padding: 7px 12px; text-decoration: none; color: var(--text); border-bottom: 1px solid var(--line); font-size: 13.5px; }
+.problems a:last-child { border-bottom: none; }
+.problems a:hover { background: var(--panel2); }
+.problems .ic { color: var(--accent); font-weight: 700; }
+.problems .ic.part { color: var(--bad); }
+.problems .p { grid-column: 2; font: 12px var(--mono); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.problems .pts { font: 12px var(--mono); color: var(--muted); }
+@media (max-width: 999px) {
+  :root[data-design="ide"] .seg { display: flex; position: sticky; top: calc(var(--top-h) + 35px); z-index: 5; background: var(--panel); border-bottom: 1px solid var(--line); margin: -22px -32px 16px; }
+  :root[data-design="ide"] .step.split.cur { display: block; }
+  :root[data-design="ide"] .seg button { flex: 1; border: none; border-radius: 0; background: none; color: var(--muted); padding: 11px 0; font-size: 14px; }
+  :root[data-design="ide"] .seg button.on { color: var(--text); box-shadow: inset 0 -2px var(--accent); }
+  :root[data-design="ide"] .step.split[data-v="cond"] .work, :root[data-design="ide"] .step.split[data-v="code"] .cond, :root[data-design="ide"] .step.split[data-v="out"] .cond { display: none; }
+  :root[data-design="ide"] .step.split:not([data-v="cond"]) .stepnav { display: none; }
+  :root[data-design="ide"] .step.split[data-v="out"] .work > .editor { display: none; }
+  .ws-grid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 860px) {
+  :root[data-design="ide"] .layout { grid-template-columns: minmax(0, 1fr); }
+  :root[data-design="ide"] #expBtn { display: none; }
+  :root[data-design="ide"] nav.side { height: auto; bottom: 26px; }
+  :root[data-design="ide"] .step, :root[data-design="ide"] .ws { padding-left: 16px; padding-right: 16px; }
+  :root[data-design="ide"] .seg { margin-left: -16px; margin-right: -16px; }
+  :root[data-design="ide"] main > :not(.stepbar):not(.step):not(.ws) { margin-left: 16px; margin-right: 16px; }
+  :root[data-design="ide"] .status .hide-sm { display: none; }
+  .md-h::before { display: none; }
+}
+
+/* ===== ОФОРМЛЕНИЕ «ТЕТРАДЬ» ===== */
+:root[data-design="note"] body { font-size: 18px; line-height: 1.7; font-weight: 400;
+  background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px); background-size: 24px 24px; }
+:root[data-design="note"] .top { background: var(--panel); border-bottom: 1.5px solid var(--text); font-family: var(--ui); }
+:root[data-design="note"] .top .brand { font-size: 18px; }
+:root[data-design="note"] .top .brand .logo { display: none; }
+:root[data-design="note"] .top .brand small { font-family: var(--ui); }
+:root[data-design="note"] button { font-family: var(--ui); }
+:root[data-design="note"] .top .score .mini { display: none; }
+:root[data-design="note"] main { --margin: 120px; position: relative; max-width: 1000px; padding: 40px 32px 120px calc(var(--margin) + 28px); }
+:root[data-design="note"] main::before { content: ""; position: absolute; top: 0; bottom: 0; left: var(--margin); border-left: 2px solid var(--rule); opacity: .75; }
+:root[data-design="note"] body.bare main::before { display: none; }
+:root[data-design="note"] body.bare main { padding-left: 32px; }
+:root[data-design="note"] .lesson-h { font-size: clamp(28px, 4.4vw, 40px); }
+:root[data-design="note"] .crumbs, :root[data-design="note"] .small { font-family: var(--ui); }
+:root[data-design="note"] .stepbar { gap: 4px 16px; font: 15px var(--ui); margin-bottom: 34px; }
+:root[data-design="note"] .stepbar a { color: var(--muted); }
+:root[data-design="note"] .stepbar .sn::after { content: ". "; }
+:root[data-design="note"] .stepbar .tn { display: inline; }
+:root[data-design="note"] .stepbar a.full .tn::after { content: " ✓"; color: var(--ok); }
+:root[data-design="note"] .stepbar a.part .tn::after { content: " ½"; color: var(--rule); }
+:root[data-design="note"] .step { background: none; border: none; padding: 0; margin: 0 0 54px; max-width: 42em; }
+:root[data-design="note"] .step[data-t]:not([data-t="text"]) { background: var(--panel); border: 1.5px solid var(--text); padding: 22px 24px 24px; }
+:root[data-design="note"] .step-h .num { display: block; position: absolute; top: 0; left: calc(-1 * var(--margin) - 28px); width: var(--margin); padding-right: 14px; text-align: right; font: italic 700 19px var(--display); color: var(--rule); line-height: 1.3; }
+:root[data-design="note"] .step[data-t="text"] .step-h .num { color: var(--faint); font-weight: 400; }
+:root[data-design="note"] .step[data-t]:not([data-t="text"]) .step-h .num { top: 22px; }
+:root[data-design="note"] .step-h .kind { font: 700 14px var(--ui); }
+:root[data-design="note"] .step-h .kind .n { display: none; }
+:root[data-design="note"] .step-h .kind .t { background: none; padding: 0; color: var(--muted); font-size: 14px; }
+:root[data-design="note"] .badge { font-family: var(--ui); border-radius: 4px; background: none; border: 1.5px solid var(--line2); }
+:root[data-design="note"] .badge.full { border-color: var(--ok); transform: rotate(-3deg); }
+:root[data-design="note"] .badge.part { border-color: var(--warn); }
+:root[data-design="note"] pre { border: none; border-left: 3px solid var(--line); border-radius: 0; }
+:root[data-design="note"] .io pre { border-left-color: var(--rule); }
+:root[data-design="note"] .opt { border: none; padding: 7px 10px; margin: 0 -10px; background: none; }
+:root[data-design="note"] .opt:hover, :root[data-design="note"] .opt:has(input:checked) { background: var(--panel2); }
+:root[data-design="note"] .result { font-size: 17px; border: none; border-left: 4px solid var(--rule); border-radius: 0; }
+:root[data-design="note"] .result.ok { border-left-color: var(--ok); }
+:root[data-design="note"] .result .ttl { font-family: var(--ui); }
+:root[data-design="note"] .editor { border: 1.5px solid var(--text); border-radius: 0; }
+:root[data-design="note"] .editor .ed-h { font-family: var(--ui); }
+:root[data-design="note"] .CodeMirror, :root[data-design="note"] .CodeMirror-gutters { background: var(--panel); }
+:root[data-design="note"] .CodeMirror-gutters { border-right-color: var(--rule); }
+:root[data-design="note"] .pager { max-width: 42em; border-top: 1.5px solid var(--text); padding-top: 18px; }
+:root[data-design="note"] .pager button { border: none; background: none; padding: 0; color: var(--text); }
+:root[data-design="note"] .pager button.primary { background: none; color: var(--text); }
+/* титульный лист и оглавление */
+.tp h1 { font: 700 clamp(26px, 6vw, 56px)/1.15 var(--display); margin: 0 0 18px; max-width: 14em; }
+.tp .lead { font-size: 20px; color: var(--muted); max-width: 34em; margin: 0 0 22px; font-style: italic; }
+.tp .meta { font: 16px var(--ui); color: var(--muted); }
+.tp .meta b { color: var(--text); }
+.tp .cont { margin: 26px 0 46px; display: flex; flex-wrap: wrap; gap: 14px 20px; align-items: center; }
+.tp .cont .where { font: 16px var(--ui); color: var(--muted); }
+.tp .cont .where b { display: block; color: var(--text); font-size: 17px; }
+.toc h2 { font: 700 26px var(--display); margin: 0 0 14px; }
+.toc ol { list-style: none; padding: 0; margin: 0; }
+.toc > ol > li { margin: 0 0 22px; position: relative; }
+.toc .wkn { display: flex; align-items: baseline; gap: 8px; font-weight: 700; font-size: 19px; }
+.toc .wkn a { color: inherit; text-decoration: none; }
+.toc .dots { flex: 1; border-bottom: 2px dotted var(--line2); transform: translateY(-5px); min-width: 24px; }
+.toc .pts { font: 15px var(--ui); color: var(--muted); white-space: nowrap; }
+.toc .pts.done { color: var(--ok); font-weight: 700; }
+.toc .wnum { position: absolute; left: calc(-1 * var(--margin) - 28px); width: var(--margin); text-align: right; padding-right: 14px; font: 700 19px var(--display); color: var(--muted); }
+.toc .ls { margin: 6px 0 0; font-size: 16px; }
+.toc .ls li { display: flex; align-items: baseline; gap: 8px; }
+.toc .ls a { color: inherit; text-decoration: none; }
+.toc .ls a:hover { text-decoration: underline; text-decoration-color: var(--rule); }
+.toc .tick { width: 1.2em; flex: none; color: var(--rule); font-weight: 700; text-align: center; }
+@media (max-width: 720px) {
+  :root[data-design="note"] main { --margin: 40px; padding: 24px 14px 96px calc(var(--margin) + 14px); }
+  :root[data-design="note"] body { font-size: 17px; }
+  :root[data-design="note"] .step-h .num, .toc .wnum { left: calc(-1 * var(--margin) - 14px); font-size: 15px; padding-right: 8px; }
+  :root[data-design="note"] .step[data-t]:not([data-t="text"]) { padding: 16px; }
+  :root[data-design="note"] .step[data-t]:not([data-t="text"]) .step-h .num { top: 16px; }
+  .toc .ls { display: none; } .toc > ol > li.open .ls { display: block; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 </style>
 </head>
 <body>
 <header class="top">
-  <button class="menu-btn" id="navBtn" aria-label="Содержание">☰</button>
-  <div class="brand" id="brand">МОБАК <small>· математические основы и базовые алгоритмы криптографии</small></div>
+  <button class="menu-btn" id="navBtn" aria-label="Содержание курса">☰</button>
+  <button id="expBtn" aria-label="Скрыть или показать проводник (Ctrl+B)" title="Проводник (Ctrl+B)">▤</button>
+  <div class="brand" id="brand"><span class="logo">М</span><span>МОБАК</span><small>Математические основы и базовые алгоритмы криптографии</small></div>
   <div class="grow"></div>
   <div class="score" id="score"></div>
   <button id="reportBtn" class="primary"><span class="hide-sm">Отчёт преподавателю</span><span class="show-sm">Отчёт</span></button>
@@ -209,6 +650,8 @@ table.grade td, table.grade th { padding: 4px 8px; }
   <nav class="side" id="side"></nav>
   <main id="main"><div class="loading">Загрузка курса…</div></main>
 </div>
+<div class="scrim" id="scrim"></div>
+<footer class="status" id="status" aria-label="Строка состояния"></footer>
 <script>
 const PYODIDE = 'https://cdn.jsdelivr.net/pyodide/v0.26.4/full/';
 const KEY = 'mobak-lms-v1';
@@ -574,9 +1017,11 @@ async function py(op, args, timeout = 20000, imports = '') {
 
 /* ---------- оценка шага ---------- */
 function setScore(s, score, extra = {}) {
-  const r = rec(s.id);
+  const r = rec(s.id), L = STEPMETA[s.id] && STEPMETA[s.id].lesson, was = L && lessonStat(L);
   r.att = (r.att || 0) + 1; r.last = score; r.score = Math.max(r.score || 0, score); r.ts = Date.now();
   Object.assign(r, extra); save(); refreshChrome(s);
+  const now = L && lessonStat(L);
+  if (now && now.n && now.done === now.n && was.done < was.n) setTimeout(() => lessonDone(L), 600);
 }
 function resultBox(box, score, title, text) {
   box.className = 'result ' + (score === 1 ? 'ok' : score > 0 ? 'part' : 'bad');
@@ -777,7 +1222,7 @@ R.code = (s, root) => {
       el('div', {}, '<div>Ожидаемый вывод</div><pre>' + esc(ex[1]) + '</pre>'));
     root.appendChild(io);
   });
-  const host = el('div', { class: 'editor' });
+  const host = el('div', { class: 'editor' }, '<div class="ed-h"><span>Ваше решение</span><span>Python 3.12</span></div>');
   root.appendChild(host);
   const ed = makeEditor(host, r.code !== undefined ? r.code : tpl, v => { r.code = v; save(); });
   const box = el('div', { class: 'result', hidden: '' });
@@ -834,118 +1279,303 @@ R.code = (s, root) => {
   setTimeout(ed.refresh, 0);
 };
 
+/* ---------- оформление: key «Ключ» | ide «Рабочее место» | note «Тетрадь» ----------
+   Выбор хранится в браузере (KEY-design), начальное значение ставит скрипт в <head> до отрисовки. */
+const DESIGNS = {
+  key: { name: 'Ключ', about: 'Урок по одному шагу, кнопки снизу. Пройденные уроки зажигают биты ключа.', sw: ['#f6f5fb', '#5b3df5', '#ffc93c', '#19162e'] },
+  ide: { name: 'Рабочее место', about: 'Как редактор кода: шаги — файлы, условие и код рядом, тёмная тема.', sw: ['#12161d', '#171c25', '#f2b13d', '#5cc98d'] },
+  note: { name: 'Тетрадь', about: 'Весь урок одной страницей, как в учебнике: поля, клетка, пометки.', sw: ['#fbfcfe', '#e6edf6', '#1c2b4a', '#d2423b'] },
+};
+const design = () => document.documentElement.dataset.design || 'key';
+const oneStep = () => design() !== 'note';   // «Ключ» и «Рабочее место» показывают по одному шагу
+function setDesign(d) {
+  if (!DESIGNS[d]) return;
+  document.documentElement.dataset.design = d;
+  try { localStorage.setItem(KEY + '-design', d); } catch (e) {}
+  window.loadDesignFonts && window.loadDesignFonts(d);
+  refreshChrome(); route();
+}
+function pickDesign(first) {
+  const md = el('div', { class: 'modal' });
+  md.innerHTML = '<div class="box wide"><h2>' + (first ? 'Выберите оформление' : 'Оформление') + '</h2><p class="small">Курс один и тот же, меняется только вид. Поменять можно в любой момент в меню «⋯».</p><div class="pick"></div><div class="actions"><button class="primary" id="pkOk">Готово</button></div></div>';
+  const box = $('.pick', md);
+  Object.entries(DESIGNS).forEach(([k, v]) => {
+    const b = el('button', { class: design() === k ? 'on' : '', 'data-d': k }, '<span class="sw">' + v.sw.map(c => '<i style="background:' + c + '"></i>').join('') + '</span><b>' + v.name + '</b><span>' + v.about + '</span>');
+    b.onclick = () => { setDesign(k); box.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); };
+    box.appendChild(b);
+  });
+  $('#pkOk', md).onclick = () => { try { localStorage.setItem(KEY + '-design-picked', '1'); } catch (e) {} md.remove(); };
+  document.body.appendChild(md);
+}
+function maybePickDesign() {
+  let picked = '1';
+  try { picked = localStorage.getItem(KEY + '-design-picked'); } catch (e) {}
+  if (!picked && !$('.modal')) pickDesign(true);
+}
+
 /* ---------- экраны ---------- */
 function badgeText(s) {
   const g = got(s), r = S.steps[s.id] || {};
   const t = s.cost ? fmt(g) + ' из ' + ofBalls(s.cost) : sc(s.id) ? 'выполнено' : 'без баллов';
   return t + (SERVER && r.att ? (r.pending ? ' · ждёт проверки' : r.vscore !== undefined ? ' · проверено' : '') : '');
 }
+const stCls = id => { const v = sc(id); return !v ? '' : v === 1 ? 'full' : 'part'; };
 function refreshChrome(s) {
-  $('#score').innerHTML = (S.name ? '<span class="nm">' + esc(S.name) + ' · </span>' : '') + '<b>' + fmt(totalGot()) + '</b> из ' + CAT.total;
+  const tg = totalGot();
+  $('#score').innerHTML = (S.name ? '<span class="nm">' + esc(S.name) + '</span>' : '') + '<span class="mini"><i style="width:' + (100 * tg / CAT.total).toFixed(1) + '%"></i></span><span><b>' + fmt(tg) + '</b> из ' + CAT.total + '</span>';
   drawSide();
   if (s) {
-    const r = S.steps[s.id] || {}, b = $('#badge-' + s.id), a = $('#sb-' + s.id);
-    const v = sc(s.id), cls = !v ? '' : v === 1 ? 'full' : 'part';
+    const b = $('#badge-' + s.id), a = $('#sb-' + s.id), cls = stCls(s.id);
     if (b) { b.className = 'badge ' + cls; b.textContent = badgeText(s); }
-    if (a) a.className = 'task ' + cls;
+    if (a) { a.classList.remove('full', 'part'); if (cls) a.classList.add(cls); }
   }
+  paintStatus();
 }
-let CUR = null;
+function paintStatus() {
+  const st = $('#status'); if (!st || !CAT) return;
+  const where = CUR ? esc(CUR.mod.label) + ' › ' + esc(CUR.title) + (oneStep() && STEP ? ' › шаг ' + STEP + ' из ' + CUR.steps.length : '') : 'Начало';
+  st.innerHTML = '<span class="pystat"></span><span class="hide-sm">' + where + '</span><span class="grow"></span><span><b>' + fmt(totalGot()) + '</b>/' + CAT.total + ' баллов</span>' + (S.name ? '<span class="hide-sm">' + esc(S.name) + '</span>' : '');
+  paintPy($('.pystat', st));
+}
+
+let CUR = null, STEP = 0;
 const OPEN = new Set();
+const shortTitle = M => M.title.replace(/^Неделя \d+\.\s*|^Итоговая работа\.\s*/, '');
+// шаги как файлы (для «Рабочего места»): 4-деление-с-остатком.py
+const EXT = { text: 'md', choice: 'quiz', number: 'quiz', matching: 'quiz', parsons: 'parsons', dataset: 'txt', code: 'py' };
+const ICON = { md: 'M', quiz: '?', py: 'Py', parsons: '↕', txt: '{}' };
+const slug = t => strip(t || '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '').split('-').slice(0, 3).join('-') || 'шаг';
+const fname = s => s.num + '-' + slug(s.title) + '.' + EXT[s.t];
+const fi = s => '<span class="fi ' + EXT[s.t] + '" aria-hidden="true">' + ICON[EXT[s.t]] + '</span>';
+const wdir = M => M.n === 15 ? 'итог' : 'нед-' + String(M.n).padStart(2, '0');
+
 function drawSide() {
   const side = $('#side'); side.innerHTML = '';
-  side.appendChild(el('a', { class: 'ls' + (CUR ? '' : ' cur'), href: '#' }, '<span class="dot"></span><span>Начало</span>'));
+  side.appendChild(el('a', { class: 'ls home' + (CUR ? '' : ' cur'), href: '#' }, '<span>Обзор курса</span>'));
   CAT.modules.forEach(M => {
     const ms = modStat(M), open = OPEN.has(M.n) || (CUR && CUR.mod === M);
     const box = el('div', { class: 'wk' + (open ? '' : ' closed') });
-    const h = el('div', { class: 'wk-h' }, '<span><span class="chev">▾</span>' + esc(M.label) + '</span><span>' + fmt(ms.g) + '/' + ms.m + '</span>');
+    const h = el('div', { class: 'wk-h' }, '<span class="chev">▾</span><span class="wl"><span class="wn">' + (design() === 'ide' ? wdir(M) : esc(M.label)) + '</span><span class="wt">' + esc(shortTitle(M)) + '</span></span>' +
+      '<span class="wp' + (ms.m && ms.g >= ms.m ? ' full' : '') + '">' + fmt(ms.g) + '/' + ms.m + '</span><span class="wbar"><i style="width:' + (ms.m ? 100 * ms.g / ms.m : 0).toFixed(1) + '%"></i></span>');
     h.addEventListener('click', () => { open ? OPEN.delete(M.n) : OPEN.add(M.n); if (CUR && CUR.mod === M && open) OPEN.delete(M.n); drawSide(); });
     box.appendChild(h);
     M.lessons.forEach(l => {
       const t = lessonStat(l), dot = !t.n ? '' : t.done === t.n ? 'full' : t.g > 0 ? 'part' : '';
       box.appendChild(el('a', { class: 'ls' + (CUR === l ? ' cur' : ''), href: '#' + l.key }, '<span class="dot ' + dot + '"></span><span>' + esc(l.title) + '</span>'));
+      if (CUR === l) {
+        const files = el('div', { class: 'files' });
+        l.steps.forEach(s => files.appendChild(el('a', { class: STEP === s.num ? 'cur' : '', href: '#' + l.key + '/' + s.num, on: { click: e => { if (!oneStep()) return; e.preventDefault(); showStep(s.num); document.body.classList.remove('nav-open'); } } },
+          fi(s) + '<span class="nm">' + esc(fname(s).replace(/\.[a-z]+$/, '')) + '</span>' + (sc(s.id) === 1 ? '<span class="ok">✓</span>' : '<span>.' + EXT[s.t] + '</span>'))));
+        box.appendChild(files);
+      }
     });
     side.appendChild(box);
   });
 }
 
-function home() {
-  CUR = null; drawSide();
-  const m = $('#main'); m.innerHTML = '';
-  const t = totalGot();
-  const hero = el('div', { class: 'hero' },
-    '<h1>МОБАК — Математические основы и базовые алгоритмы криптографии</h1>' +
-    '<p>14 недель и итоговая работа: Python с нуля, теория чисел, AES, хеши, RSA, эллиптические кривые и TLS. Код пишется и проверяется прямо здесь.</p>' +
-    '<p>Студент: <b>' + esc(S.name || '—') + '</b> · набрано <b>' + fmt(t) + '</b> из ' + CAT.total + ' баллов</p>' +
-    '<div class="bar" style="margin-top:10px"><i style="width:' + (100 * t / CAT.total).toFixed(1) + '%"></i></div>');
-  const nxt = LESSONS.find(l => { const s = lessonStat(l); return s.n && s.done < s.n; });
-  const acts = el('div', { class: 'actions' });
-  acts.append(el('button', { class: 'primary', on: { click: () => location.hash = (nxt || LESSONS[0]).key } }, t > 0 ? 'Продолжить' : 'Начать'));
-  hero.appendChild(acts);
-  const pys = el('div', { class: 'pystat', style: 'margin-top:8px' }); paintPy(pys); hero.appendChild(pys);
-  m.appendChild(hero);
+const TASK_LESSONS = () => LESSONS.filter(l => lessonStat(l).n);
+const lstate = l => { const t = lessonStat(l); return !t.n ? 'none' : t.done === t.n ? 'done' : t.g > 0 ? 'part' : 'new'; };
+const nextLesson = () => LESSONS.find(l => { const s = lessonStat(l); return s.n && s.done < s.n; }) || LESSONS[0];
+function testBanner(m) {
   if (CAT.test) m.appendChild(el('div', { class: 'result bad' }, '<div class="ttl">Тестовая сборка</div>В данных есть эталонные решения — эту сборку нельзя выкладывать студентам.'));
-  const grid = el('div', { class: 'weeks' });
-  CAT.modules.forEach(M => {
-    const ms = modStat(M), c = el('div', { class: 'wcard' });
-    c.innerHTML = '<div class="n">' + esc(M.label) + '</div><h3>' + esc(M.title.replace(/^Неделя \d+\.\s*|^Итоговая работа\.\s*/, '')) + '</h3>' +
-      '<div class="bar"><i style="width:' + (ms.m ? 100 * ms.g / ms.m : 0).toFixed(1) + '%"></i></div><div class="small">' + fmt(ms.g) + ' из ' + ofBalls(ms.m) + '</div>' +
-      '<ul>' + M.lessons.map(l => '<li>' + esc(l.title) + '</li>').join('') + '</ul>';
-    c.appendChild(el('button', { class: 'go', on: { click: () => location.hash = M.lessons[0].key } }, 'Открыть'));
-    grid.appendChild(c);
-  });
-  m.appendChild(grid);
+}
+function home() {
+  CUR = null; STEP = 0; drawSide(); paintStatus();
+  const m = $('#main'); m.className = ''; m.innerHTML = '';
+  ({ key: homeKey, ide: homeIde, note: homeNote })[design()](m);
   window.scrollTo(0, 0);
 }
 
-async function lesson(l) {
-  CUR = l; drawSide();
-  const m = $('#main'); m.innerHTML = '<div class="loading">Загрузка урока…</div>';
+/* главная «Ключ»: каждый урок с задачами — бит ключа, ключ показан шестнадцатеричным дампом */
+function keyHex(extra) {
+  const bits = TASK_LESSONS().map(l => (l === extra || lstate(l) === 'done') ? 1 : 0);
+  while (bits.length % 8) bits.push(0);
+  return bits.join('').match(/.{8}/g).map(b => parseInt(b, 2).toString(16).toUpperCase().padStart(2, '0')).join(' ');
+}
+function dumpHtml(anim, extra, onlyRow) {
+  const TL = TASK_LESSONS(); let h = '', lit = 0;
+  for (let r = 0; r * 8 < TL.length; r++) {
+    if (onlyRow !== undefined && r !== onlyRow) continue;
+    let byte = 0;
+    h += '<span class="off">' + (r * 8).toString(16).toUpperCase().padStart(2, '0') + '</span>';
+    for (let c = 0; c < 8; c++) {
+      const i = r * 8 + c, l = TL[i];
+      if (!l) { h += '<span></span>'; continue; }
+      const s = l === extra ? 'done' : lstate(l), first = !i || TL[i - 1].mod !== l.mod;
+      if (s === 'done') byte |= 128 >> c;
+      h += '<a class="bit ' + (s === 'done' ? 'on' : s === 'part' ? 'half' : '') + (l === extra ? ' new' : '') + '" style="--i:' + (s === 'done' ? lit++ : 0) + '" href="#' + l.key + '" title="' + esc(l.mod.label + ': ' + l.title) + '">' +
+        (s === 'done' ? 1 : 0) + (first ? '<span class="w">' + (l.mod.n === 15 ? 'И' : l.mod.n) + '</span>' : '') + '</a>';
+    }
+    h += '<span class="hx' + (byte ? '' : ' zero') + '">' + byte.toString(16).toUpperCase().padStart(2, '0') + '</span>';
+  }
+  return '<div class="dump' + (anim ? ' anim' : '') + '" role="img" aria-label="Ключ: ' + keyHex(extra) + '">' + h + '</div>';
+}
+function homeKey(m) {
+  const nx = nextLesson(), nxs = lessonStat(nx), TL = TASK_LESSONS(), lit = TL.filter(l => lstate(l) === 'done').length;
+  const dots = nx.steps.map(s => '<i class="' + (!isTask(s) ? 'th' : sc(s.id) === 1 ? 'ok' : '') + '"></i>').join('');
+  const kh = el('section', { class: 'kh' }, '<div><h1>Соберите ключ из ' + TL.length + ' бит</h1><p>Каждый урок с задачами — один бит. Решили все задачи урока, и бит загорается. Наполовину жёлтый бит — урок начат. Метка над битом — номер недели, с которой он начинается.</p>' +
+    dumpHtml(true) + '<div class="hex">Ключ сейчас: <b>' + keyHex() + '</b>, горит ' + lit + ' ' + plural(lit, 'бит', 'бита', 'бит') + ' из ' + TL.length + '</div></div>');
+  const now = el('aside', { class: 'now' }, '<div class="w">' + (totalGot() ? 'Сейчас: ' : 'Начните с урока: ') + esc(nx.mod.label) + '</div><h2>' + esc(nx.title) + '</h2><div class="dots">' + dots + '</div>');
+  now.appendChild(el('button', { class: 'primary', on: { click: () => location.hash = nx.key } }, totalGot() ? 'Продолжить' : 'Начать курс'));
+  now.appendChild(el('div', { class: 'sum' }, 'Решено задач в уроке: ' + nxs.done + ' из ' + nxs.n));
+  const pys = el('div', { class: 'pystat' }); paintPy(pys); now.appendChild(pys);
+  kh.appendChild(now); m.appendChild(kh);
+  testBanner(m);
+  m.appendChild(el('div', { class: 'sec-h' }, '<h2>Недели</h2><span class="small">' + fmt(totalGot()) + ' из ' + CAT.total + ' баллов</span>'));
+  const route = el('section', { class: 'route' });
+  CAT.modules.forEach(M => {
+    const ms = modStat(M), done = M.lessons.filter(l => lstate(l) === 'done').length;
+    const mini = M.lessons.filter(l => lessonStat(l).n).map(l => { const s = lstate(l); return '<i class="' + (s === 'done' ? 'on' : s === 'part' ? 'half' : '') + '"></i>'; }).join('');
+    route.appendChild(el('a', { class: 'wk' + (ms.g ? ' has' : ''), href: '#' + M.lessons[0].key },
+      '<span class="n">' + (M.n === 15 ? 'И' : M.n) + '</span><span><span class="t">' + esc(shortTitle(M)) + '</span><br><span class="ls">' + M.lessons.length + ' ' + plural(M.lessons.length, 'урок', 'урока', 'уроков') + ', пройдено ' + done + '</span><span class="mini-bits">' + mini + '</span></span>' +
+      '<span class="sc">' + fmt(ms.g) + ' из ' + ms.m + '<small>баллов</small></span>'));
+  });
+  m.appendChild(route);
+}
+
+/* главная «Рабочее место»: README и список нерешённых задач («Проблемы») */
+function homeIde(m) {
+  const nx = nextLesson(), unsolved = [];
+  TASK_LESSONS().forEach(l => l.steps.forEach(s => { if (isTask(s) && sc(s.id) !== 1) unsolved.push([l, s]); }));
+  const started = ([l]) => lstate(l) === 'part';
+  const todo = unsolved.filter(started).concat(unsolved.filter(x => !started(x))).slice(0, 8);
+  const b8 = (g, mx) => { const k = mx ? Math.round(8 * g / mx) : 0; return '█'.repeat(k) + '<i>' + '█'.repeat(8 - k) + '</i>'; };
+  const prog = CAT.modules.map(M => { const ms = modStat(M); return '<a href="#' + M.lessons[0].key + '"><span class="n">' + (M.n === 15 ? 'И' : M.n) + '</span><span class="nm">' + esc(shortTitle(M)) + '</span><span class="b8">' + b8(ms.g, ms.m) + '</span><span class="p">' + fmt(ms.g) + '/' + ms.m + '</span></a>'; }).join('');
+  const probs = todo.map(([l, s]) => '<a href="#' + l.key + '/' + s.num + '"><span class="ic' + (started([l]) ? ' part' : '') + '">' + (started([l]) ? '●' : '○') + '</span><span>' + TYPE[s.t] + ' не решена: ' + esc(strip(s.title).slice(0, 52)) + '</span><span class="pts">' + s.cost + ' б.</span><span class="p">' + wdir(l.mod) + '/' + esc(slug(l.title)) + '/' + esc(fname(s)) + '</span></a>').join('');
+  const ws = el('div', { class: 'ws' }, '<div class="ws-grid"><div>' +
+    '<h1 class="md-h" data-h="#">Математические основы и базовые алгоритмы криптографии</h1><p>Теория, тесты и программы на Python в одном окне. Код запускается и проверяется прямо здесь, ничего устанавливать не нужно.</p>' +
+    '<div class="resume"><div class="w">' + (totalGot() ? 'Продолжить: ' : 'Начать: ') + esc(nx.mod.label) + '</div><div class="t">' + esc(nx.title) + '</div></div>' +
+    '<h2 class="md-h" data-h="##">Клавиши</h2><div class="keys"><span><kbd>Alt</kbd>+<kbd>→</kbd></span><span>следующий шаг</span><span><kbd>Alt</kbd>+<kbd>←</kbd></span><span>предыдущий шаг</span><span><kbd>Ctrl</kbd>+<kbd>B</kbd></span><span>скрыть проводник</span></div>' +
+    '<h2 class="md-h" data-h="##">Прогресс по неделям</h2><div class="prog">' + prog + '</div></div>' +
+    '<div class="problems"><div class="ph"><b>Проблемы<span class="cnt">' + unsolved.length + '</span></b><span>Сначала начатые уроки</span></div>' + (probs || '<a href="#">Нерешённых задач нет</a>') + '</div></div>');
+  $('.resume', ws).appendChild(el('button', { class: 'primary', on: { click: () => location.hash = nx.key } }, 'Открыть урок'));
+  const pys = el('div', { class: 'pystat' }); paintPy(pys); $('.resume', ws).appendChild(pys);
+  m.appendChild(ws); testBanner(ws);
+}
+
+/* главная «Тетрадь»: титульный лист и оглавление учебника */
+function homeNote(m) {
+  const nx = nextLesson(), TL = TASK_LESSONS(), done = TL.filter(l => lstate(l) === 'done').length;
+  const tp = el('section', { class: 'tp' }, '<h1>Математические основы и базовые алгоритмы криптографии</h1>' +
+    '<p class="lead">От делимости и остатков до AES, RSA и эллиптических кривых. Каждую формулу вы проверите кодом на Python прямо на странице.</p>' +
+    '<p class="meta">' + (S.name ? esc(S.name) + ': ' : '') + 'набрано <b>' + fmt(totalGot()) + '</b> из ' + CAT.total + ', пройдено уроков <b>' + done + '</b> из ' + TL.length + '</p><div class="cont"></div>');
+  $('.cont', tp).append(el('button', { class: 'primary', on: { click: () => location.hash = nx.key } }, totalGot() ? 'Продолжить урок' : 'Начать курс'),
+    el('span', { class: 'where' }, esc(nx.mod.label) + '<b>' + esc(nx.title) + '</b>'));
+  m.appendChild(tp); testBanner(m);
+  let h = '<h2>Оглавление</h2><ol>';
+  CAT.modules.forEach(M => {
+    const ms = modStat(M);
+    h += '<li' + (M === nx.mod ? ' class="open"' : '') + '><span class="wnum">' + (M.n === 15 ? 'И' : M.n) + '</span><div class="wkn"><a href="#' + M.lessons[0].key + '">' + esc(shortTitle(M)) + '</a><span class="dots"></span><span class="pts' + (ms.m && ms.g >= ms.m ? ' done' : '') + '">' + fmt(ms.g) + ' из ' + ms.m + '</span></div><ol class="ls">' +
+      M.lessons.map(l => { const s = lstate(l); return '<li><span class="tick">' + (s === 'done' ? '✓' : s === 'part' ? '½' : '') + '</span><a href="#' + l.key + '">' + esc(l.title) + '</a></li>'; }).join('') + '</ol></li>';
+  });
+  m.appendChild(el('section', { class: 'toc' }, h + '</ol>'));
+}
+const plural = (n, a, b, c) => { const k = n % 100, j = n % 10; return k >= 11 && k <= 14 ? c : j === 1 ? a : j >= 2 && j <= 4 ? b : c; };
+
+async function lesson(l, want) {
+  CUR = l; STEP = 0; drawSide(); paintStatus();
+  const m = $('#main'); m.className = 'in-lesson'; m.innerHTML = '<div class="loading">Загрузка урока…</div>';
   let data;
   try { data = await loadModule(l.mod.n); } catch (e) { m.innerHTML = '<div class="result bad">Не удалось загрузить урок. Проверьте интернет и обновите страницу.</div>'; return; }
   if (CUR !== l) return;
   const steps = data.lessons[l.mod.lessons.indexOf(l)].steps;
   m.innerHTML = '';
-  m.appendChild(el('div', { class: 'crumbs' }, esc(l.mod.label) + ' · ' + esc(l.mod.title.replace(/^Неделя \d+\.\s*|^Итоговая работа\.\s*/, ''))));
+  m.appendChild(el('div', { class: 'crumbs' }, '<a href="#' + l.mod.lessons[0].key + '">' + (design() === 'ide' ? wdir(l.mod) + '/' + esc(slug(l.title)) : esc(l.mod.label) + ' · ' + esc(shortTitle(l.mod))) + '</a>'));
   m.appendChild(el('h1', { class: 'lesson-h' }, esc(l.title)));
-  const bar = el('div', { class: 'stepbar' });
+  const bar = el('nav', { class: 'stepbar', 'aria-label': 'Шаги урока' });
   l.steps.forEach(s => {
-    const v = sc(s.id), cls = (isTask(s) ? 'task ' : '') + (!v ? '' : v === 1 ? 'full' : 'part');
-    bar.appendChild(el('a', { id: 'sb-' + s.id, class: cls, href: 'javascript:void 0', title: (TYPE[s.t] || '') + ': ' + s.title,
-      on: { click: () => document.getElementById('st' + s.id).scrollIntoView({ behavior: 'smooth' }) } }, s.num));
+    bar.appendChild(el('a', { id: 'sb-' + s.id, class: (isTask(s) ? 'task ' : '') + stCls(s.id), href: '#' + l.key + '/' + s.num, 'data-n': s.num, title: 'Шаг ' + s.num + ', ' + (TYPE[s.t] || '').toLowerCase() + ': ' + strip(s.title),
+      on: { click: e => { e.preventDefault(); goStep(s.num); } } }, '<span class="sn">' + s.num + '</span>' + fi(s) + '<span class="fn">' + esc(fname(s)) + '</span><span class="tn">' + TYPE[s.t] + '</span>'));
   });
   m.appendChild(bar);
+  const li = LESSONS.indexOf(l), nextL = LESSONS[li + 1];
   steps.forEach((s, i) => {
     const meta = l.steps[i];
     s.cost = meta.cost;
-    const card = el('section', { class: 'step', id: 'st' + s.id });
-    const h = el('div', { class: 'step-h' }, '<span>Шаг ' + meta.num + ' · ' + TYPE[s.t] + '</span>');
-    if (isTask(s)) { const v = sc(s.id); h.appendChild(el('span', { id: 'badge-' + s.id, class: 'badge ' + (!v ? '' : v === 1 ? 'full' : 'part') }, badgeText(s))); }
+    const card = el('section', { class: 'step', id: 'st' + s.id, 'data-t': s.t, 'data-n': meta.num });
+    const h = el('div', { class: 'step-h' }, '<span class="num">' + meta.num + '</span><span class="kind"><span class="n">Шаг ' + meta.num + '</span> <span class="t">' + TYPE[s.t] + '</span></span>');
+    if (isTask(s)) h.appendChild(el('span', { id: 'badge-' + s.id, class: 'badge ' + stCls(s.id) }, badgeText(s)));
     card.append(h, el('div', { class: 'body' }, s.html));
     if (R[s.t]) R[s.t](s, card);
+    if (s.t === 'code') {
+      // условие | код и проверка: на широком экране — рядом («Ключ», «Рабочее место»), на телефоне — вкладки
+      const cond = el('div', { class: 'cond' }), work = el('div', { class: 'work' });
+      [...card.children].forEach(ch => (ch.matches('.editor, .actions, .result, details.run, .pystat') ? work : cond).appendChild(ch));
+      const seg = el('div', { class: 'seg' });
+      [['cond', 'Условие'], ['code', 'Код'], ['out', 'Проверка']].forEach(([v, t]) => seg.appendChild(el('button', { class: v === 'cond' ? 'on' : '', on: { click: () => {
+        card.dataset.v = v; seg.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.textContent === t)); card.querySelectorAll('.CodeMirror').forEach(c => c.CodeMirror && c.CodeMirror.refresh());
+      } } }, t)));
+      card.dataset.v = 'cond'; card.classList.add('split'); card.append(seg, cond, work);
+      m.classList.add('wide');
+    }
+    const nav = el('div', { class: 'stepnav' });
+    if (meta.num > 1) nav.appendChild(el('button', { on: { click: () => goStep(meta.num - 1) } }, '← Назад'));
+    nav.appendChild(meta.num < l.steps.length ? el('button', { class: 'nx primary', on: { click: () => goStep(meta.num + 1) } }, 'Дальше')
+      : nextL ? el('button', { class: 'nx primary', on: { click: () => location.hash = nextL.key } }, 'Следующий урок') : el('span'));
+    card.appendChild(nav);
     m.appendChild(card);
   });
-  const i = LESSONS.indexOf(l), pager = el('div', { class: 'pager' });
-  pager.append(i > 0 ? el('button', { on: { click: () => location.hash = LESSONS[i - 1].key } }, '← ' + esc(LESSONS[i - 1].title)) : el('span'),
-    i < LESSONS.length - 1 ? el('button', { class: 'primary', on: { click: () => location.hash = LESSONS[i + 1].key } }, esc(LESSONS[i + 1].title) + ' →') : el('span'));
+  const pager = el('div', { class: 'pager' });
+  if (li > 0) pager.append(el('button', { on: { click: () => location.hash = LESSONS[li - 1].key } }, '<span class="pl">← Назад</span>' + esc(LESSONS[li - 1].title)));
+  if (nextL) pager.append(el('button', { class: 'primary nx', on: { click: () => location.hash = nextL.key } }, '<span class="pl">Далее →</span>' + esc(nextL.title)));
   m.appendChild(pager);
-  window.scrollTo(0, 0);
+  // с какого шага начать: из адреса (#m1l4/3), иначе с первого нерешённого задания
+  const first = l.steps.find(s => isTask(s) && sc(s.id) !== 1);
+  const n = want && want <= l.steps.length ? want : first ? Math.max(1, first.num - (l.steps[first.num - 2] && !isTask(l.steps[first.num - 2]) ? 1 : 0)) : 1;
+  if (oneStep()) showStep(want ? n : (lessonStat(l).g ? n : 1), true);
+  else { window.scrollTo(0, 0); if (want) setTimeout(() => goStep(want), 50); }
   if (steps.some(s => s.t === 'code' || s.t === 'dataset')) pyStart().catch(() => {});
+}
+function showStep(n, quiet) {
+  const m = $('#main'); if (!CUR) return;
+  n = Math.max(1, Math.min(n, CUR.steps.length)); STEP = n;
+  m.querySelectorAll('section.step').forEach(sec => sec.classList.toggle('cur', +sec.dataset.n === n));
+  m.querySelectorAll('.stepbar a').forEach(a => a.classList.toggle('cur', +a.dataset.n === n));
+  history.replaceState(null, '', '#' + CUR.key + '/' + n);
+  const sec = m.querySelector('section.step.cur');
+  if (sec) sec.querySelectorAll('.CodeMirror').forEach(c => c.CodeMirror && c.CodeMirror.refresh());
+  const a = m.querySelector('.stepbar a.cur'); if (a && a.scrollIntoView) a.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  drawSide(); paintStatus();
+  window.scrollTo(0, quiet ? 0 : Math.min(window.scrollY, m.querySelector('.stepbar').offsetTop - 8));
+}
+function goStep(n) {
+  if (oneStep()) return showStep(n);
+  const s = CUR && CUR.steps[n - 1]; if (s) document.getElementById('st' + s.id).scrollIntoView({ behavior: 'smooth' });
+}
+addEventListener('keydown', e => {
+  if (e.altKey && CUR && STEP && oneStep() && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) { e.preventDefault(); showStep(STEP + (e.key === 'ArrowRight' ? 1 : -1)); }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b' && design() === 'ide') { e.preventDefault(); document.body.classList.toggle('noexp'); }
+});
+
+// урок решён целиком: в «Ключе» — экран с загоревшимся битом, в остальных — уведомление
+function lessonDone(l) {
+  if (design() !== 'key') return toast('Урок «' + l.title + '» пройден');
+  const TL = TASK_LESSONS(), i = TL.indexOf(l), st = lessonStat(l), nl = LESSONS[LESSONS.indexOf(l) + 1];
+  const md = el('div', { class: 'modal' });
+  md.innerHTML = '<div class="box wide fin"><div class="eyebrow">' + esc(l.mod.label) + '</div><h2>Урок пройден, бит ' + (i + 1) + ' загорелся</h2><p class="small">«' + esc(l.title) + '»: ' + fmt(st.g) + ' из ' + ofBalls(st.m) + '. Байт ключа, в который попал этот бит:</p>' +
+    dumpHtml(false, l, Math.floor(i / 8)) + '<div class="hex">Ключ теперь: <b>' + keyHex() + '</b></div><div class="actions"></div></div>';
+  const acts = $('.actions', md);
+  if (nl) acts.appendChild(el('button', { class: 'primary', on: { click: () => { md.remove(); location.hash = nl.key; } } }, 'Следующий урок'));
+  acts.appendChild(el('button', { on: { click: () => { md.remove(); location.hash = ''; } } }, 'Посмотреть ключ'));
+  acts.appendChild(el('button', { class: 'link', on: { click: () => md.remove() } }, 'Остаться в уроке'));
+  md.addEventListener('click', e => { if (e.target === md) md.remove(); });
+  document.body.appendChild(md);
 }
 
 function route() {
   document.body.classList.remove('nav-open');
-  const k = location.hash.slice(1), l = LESSONS.find(x => x.key === k);
-  if (k.startsWith('teacher')) return ME && ME.role === 'teacher' ? teacher(k.split('/')[1]) : home();
-  l ? lesson(l) : home();
+  const k = location.hash.slice(1), [lk, sn] = k.split('/'), l = LESSONS.find(x => x.key === lk);
+  if (k.startsWith('teacher')) { CUR = null; STEP = 0; $('#main').className = ''; return ME && ME.role === 'teacher' ? teacher(k.split('/')[1]) : home(); }
+  if (l && CUR === l && $('#main section.step') && sn) return goStep(+sn);
+  l ? lesson(l, sn ? +sn : 0) : home();
 }
 
 /* ---------- вход по почте (magic link) ---------- */
 function loginScreen(msg) {
-  $('#side').innerHTML = '';
+  $('#side').innerHTML = ''; document.body.classList.add('bare');
   const m = $('#main'); m.innerHTML = '';
-  const box = el('div', { class: 'hero', style: 'max-width:560px' },
-    '<h1>МОБАК — вход</h1><p>Введите почту, которую вы дали преподавателю. На неё придёт письмо со ссылкой для входа — откройте её, и вы окажетесь в курсе. Пароль не нужен.</p>');
+  const box = el('div', { class: 'hero' },
+    '<div class="eyebrow">МОБАК · вход в курс</div><h1>Математические основы и базовые алгоритмы криптографии</h1><p>Введите почту, которую вы дали преподавателю. На неё придёт письмо со ссылкой для входа — откройте её, и вы окажетесь в курсе. Пароль не нужен.</p>');
   const inp = el('input', { type: 'email', class: 'answer', placeholder: 'почта@пример.ru', autocomplete: 'email' });
   const btn = el('button', { class: 'primary' }, 'Получить ссылку для входа');
   const res = el('div', { class: 'result', hidden: '' });
@@ -1141,7 +1771,7 @@ function askName(force) {
   const ok = () => {
     const v = inp.value.trim().replace(/\s+/g, ' ');
     if (v.length < 3) return toast('Введите фамилию и имя');
-    S.name = v; save(); md.remove(); refreshChrome(); route();
+    S.name = v; save(); md.remove(); refreshChrome(); route(); maybePickDesign();
   };
   $('#nmOk', md).onclick = ok; inp.addEventListener('keydown', e => { if (e.key === 'Enter') ok(); });
   if (force) $('#nmNo', md).onclick = () => md.remove();
@@ -1196,14 +1826,28 @@ function menu() {
       f.click();
     });
   }
-  item('Тема: светлая / тёмная', () => { const cur = document.documentElement.dataset.theme; const dark = cur ? cur === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches; document.documentElement.dataset.theme = dark ? 'light' : 'dark'; try { localStorage.setItem(KEY + '-theme', document.documentElement.dataset.theme); } catch (e) {} });
+  mn.appendChild(el('div', { class: 'sep' }));
+  mn.appendChild(el('div', { class: 'mh' }, 'Оформление'));
+  Object.entries(DESIGNS).forEach(([k, v]) => item((design() === k ? '● ' : '○ ') + v.name, () => setDesign(k)));
+  item('Сравнить оформления…', () => pickDesign(false));
+  mn.appendChild(el('div', { class: 'sep' }));
+  // «Рабочее место» по умолчанию тёмное, остальные — как в системе
+  item('Тема: светлая / тёмная', () => { const cur = document.documentElement.dataset.theme; const dark = cur ? cur === 'dark' : design() === 'ide' || matchMedia('(prefers-color-scheme: dark)').matches; document.documentElement.dataset.theme = dark ? 'light' : 'dark'; try { localStorage.setItem(KEY + '-theme', document.documentElement.dataset.theme); } catch (e) {} });
   document.body.appendChild(mn);
   setTimeout(() => document.addEventListener('click', function off(e) { if (!mn.contains(e.target)) { mn.remove(); document.removeEventListener('click', off); } }), 0);
 }
 
 try { const th = localStorage.getItem(KEY + '-theme'); if (th) document.documentElement.dataset.theme = th; } catch (e) {}
-document.head.appendChild(el('style', {}, '.show-sm{display:none}@media (max-width:860px){.show-sm{display:inline}}'));
 $('#navBtn').onclick = () => document.body.classList.toggle('nav-open');
+$('#expBtn').onclick = () => document.body.classList.toggle('noexp');
+$('#scrim').onclick = () => document.body.classList.remove('nav-open');
+// схема из урока — на весь экран по клику
+$('#main').addEventListener('click', e => {
+  const im = e.target.closest('.step .body img');
+  if (!im) return;
+  const md = el('div', { class: 'modal zoom' }); md.appendChild(el('img', { src: im.src, alt: im.alt }));
+  md.onclick = () => md.remove(); document.body.appendChild(md);
+});
 $('#brand').onclick = () => location.hash = '';
 $('#reportBtn').onclick = report;
 $('#moreBtn').onclick = menu;
@@ -1213,7 +1857,7 @@ $('#moreBtn').onclick = menu;
   if (!SERVER) {
     save();
     window.addEventListener('hashchange', route);
-    refreshChrome(); route(); askName();
+    refreshChrome(); route(); askName(); maybePickDesign();
     return;
   }
   if (!sb) { $('#main').innerHTML = '<div class="result bad">Не загрузилась библиотека входа. Проверьте интернет и обновите страницу.</div>'; return; }
@@ -1234,7 +1878,7 @@ $('#moreBtn').onclick = menu;
   try { await flushOutbox(); await pullProgress(); } catch (e) { toast('Прогресс с сервера не загрузился: ' + errText(e)); }
   save();
   window.addEventListener('hashchange', route);
-  refreshChrome(); route();
+  refreshChrome(); route(); maybePickDesign();
   sb.auth.onAuthStateChange(ev => { if (ev === 'SIGNED_OUT') location.reload(); });
 })();
 </script>
