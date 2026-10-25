@@ -307,6 +307,7 @@ body.bare .layout { grid-template-columns: minmax(0, 1fr) !important; }
 body.bare nav.side, body.bare .menu-btn, body.bare #expBtn, body.bare .status { display: none !important; }
 body.bare main { max-width: 620px; padding-top: 12vh; }
 .eyebrow { font-size: 13px; font-weight: 700; color: var(--accent); margin-bottom: 8px; }
+.answer.otp { font: 700 28px/1.2 var(--mono); letter-spacing: .35em; text-align: center; max-width: 280px; display: block; }
 
 @media (max-width: 860px) {
   .layout { grid-template-columns: minmax(0, 1fr); }
@@ -1574,28 +1575,68 @@ function route() {
 function loginScreen(msg) {
   $('#side').innerHTML = ''; document.body.classList.add('bare');
   const m = $('#main'); m.innerHTML = '';
-  const box = el('div', { class: 'hero' },
-    '<div class="eyebrow">МОБАК · вход в курс</div><h1>Математические основы и базовые алгоритмы криптографии</h1><p>Введите почту, которую вы дали преподавателю. На неё придёт письмо со ссылкой для входа — откройте её, и вы окажетесь в курсе. Пароль не нужен.</p>');
-  const inp = el('input', { type: 'email', class: 'answer', placeholder: 'почта@пример.ru', autocomplete: 'email' });
-  const btn = el('button', { class: 'primary' }, 'Получить ссылку для входа');
-  const res = el('div', { class: 'result', hidden: '' });
-  if (msg) { res.className = 'result bad'; res.textContent = msg; res.hidden = false; }
-  const go = async () => {
-    const email = inp.value.trim().toLowerCase();
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return toast('Введите почту');
-    btn.disabled = true; btn.textContent = 'Отправляем…';
-    const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: location.origin + location.pathname, shouldCreateUser: true } });
-    btn.disabled = false; btn.textContent = 'Получить ссылку для входа';
-    res.hidden = false;
-    if (error) { res.className = 'result bad'; res.textContent = 'Не получилось: ' + errText(error) + '.'; return; }
-    res.className = 'result ok';
-    res.innerHTML = '<div class="ttl">Письмо отправлено на ' + esc(email) + '</div>Откройте ссылку из письма. Письма нет несколько минут — проверьте «Спам» и «Промоакции».';
+  // вход в два шага: почта → 6-значный код из письма (ссылка из того же письма тоже работает)
+  const box = el('div', { class: 'hero' }, '<div class="eyebrow">МОБАК · вход в курс</div><h1>Математические основы и базовые алгоритмы криптографии</h1><p class="lead"></p>');
+  const lead = $('.lead', box), form = el('div', { class: 'login-form' }), res = el('div', { class: 'result', hidden: '' });
+  const say = (cls, html) => { res.className = 'result ' + cls; res.innerHTML = html; res.hidden = false; };
+  const acts = (...b) => { const a = el('div', { class: 'actions' }); a.append(...b); return a; };
+  let email = '', timer = null;
+  const send = async e => {
+    const { error } = await sb.auth.signInWithOtp({ email: e, options: { emailRedirectTo: location.origin + location.pathname, shouldCreateUser: true } });
+    if (error) say('bad', 'Не получилось отправить письмо: ' + esc(errText(error)) + '.');
+    return !error;
   };
-  inp.addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
-  btn.addEventListener('click', go);
-  box.append(inp, el('div', { class: 'actions' }), res); $('.actions', box).append(btn);
-  m.appendChild(box);
+  const askEmail = () => {
+    clearInterval(timer);
+    lead.textContent = 'Введите почту, которую вы дали преподавателю. На неё придёт письмо с кодом из 6 цифр. Пароль не нужен.';
+    form.innerHTML = '';
+    const inp = el('input', { type: 'email', class: 'answer', placeholder: 'почта@пример.ru', autocomplete: 'email', 'aria-label': 'Почта' }); inp.value = email;
+    const btn = el('button', { class: 'primary' }, 'Получить код');
+    const go = async () => {
+      const e = inp.value.trim().toLowerCase();
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)) return toast('Введите почту');
+      btn.disabled = true; btn.textContent = 'Отправляем…';
+      const ok = await send(e);
+      btn.disabled = false; btn.textContent = 'Получить код';
+      if (ok) { email = e; askCode(); }
+    };
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
+    btn.addEventListener('click', go);
+    form.append(inp, acts(btn)); inp.focus();
+  };
+  const askCode = () => {
+    lead.innerHTML = 'Код отправлен на <b>' + esc(email) + '</b>. Введите 6 цифр из письма — или просто откройте ссылку из него. Письма нет несколько минут — проверьте «Спам» и «Промоакции».';
+    res.hidden = true; form.innerHTML = '';
+    const code = el('input', { type: 'text', class: 'answer otp', inputmode: 'numeric', autocomplete: 'one-time-code', maxlength: '8', placeholder: '••••••', 'aria-label': 'Код из письма' });
+    const ok = el('button', { class: 'primary' }, 'Войти');
+    const again = el('button', { class: 'link' }), other = el('button', { class: 'link' }, 'Другая почта');
+    let left = 0;
+    const tick = () => { again.disabled = left > 0; again.textContent = left > 0 ? 'Отправить код ещё раз через ' + left + ' с' : 'Отправить код ещё раз'; if (left > 0) left--; else clearInterval(timer); };
+    const wait = () => { clearInterval(timer); left = 60; tick(); timer = setInterval(tick, 1000); };   // почта Supabase: не чаще раза в минуту
+    wait();
+    again.addEventListener('click', async () => { if (left > 0) return; again.disabled = true; if (await send(email)) { say('ok', 'Новый код отправлен на ' + esc(email) + '.'); wait(); } else again.disabled = false; });
+    other.addEventListener('click', askEmail);
+    const verify = async () => {
+      const token = code.value.replace(/\D/g, '');
+      if (token.length < 6) return toast('Введите код из письма');
+      ok.disabled = true; ok.textContent = 'Проверяем…';
+      const { error } = await sb.auth.verifyOtp({ email, token, type: 'email' });
+      if (error) {
+        ok.disabled = false; ok.textContent = 'Войти';
+        say('bad', /expired|invalid/i.test(error.message || '') ? 'Код неверный или устарел. Проверьте цифры или отправьте новый код.' : 'Не получилось войти: ' + esc(errText(error)) + '.');
+        code.select(); return;
+      }
+      clearInterval(timer); location.reload();
+    };
+    code.addEventListener('input', () => { code.value = code.value.replace(/\D/g, '').slice(0, 8); });
+    code.addEventListener('keydown', e => { if (e.key === 'Enter') verify(); });
+    ok.addEventListener('click', verify);
+    form.append(code, acts(ok, again, other)); code.focus();
+  };
+  if (msg) say('bad', esc(msg));
+  box.append(form, res); m.appendChild(box);
   $('#score').textContent = '';
+  askEmail();
 }
 
 // ошибка из ссылки входа (например, ссылка устарела) приходит в адресе после #
