@@ -1641,7 +1641,7 @@ function doneJoin() { try { localStorage.removeItem(JKEY); } catch (e) {} }
 function loginScreen(msg, join) {
   $('#side').innerHTML = ''; document.body.classList.add('bare');
   const m = $('#main'); m.innerHTML = '';
-  // вход в два шага: почта → 6-значный код из письма (ссылка из того же письма тоже работает)
+  // вход в два шага: почта → код из письма (ссылка из того же письма тоже работает)
   const box = el('div', { class: 'hero' }, '<div class="eyebrow">МОБАК · ' + (join ? 'запись в группу ' + esc(join.group) : 'вход в курс') + '</div><h1>Математические основы и базовые алгоритмы криптографии</h1><p class="lead"></p>');
   const lead = $('.lead', box), form = el('div', { class: 'login-form' }), res = el('div', { class: 'result', hidden: '' });
   const say = (cls, html) => { res.className = 'result ' + cls; res.innerHTML = html; res.hidden = false; };
@@ -1656,8 +1656,8 @@ function loginScreen(msg, join) {
   };
   const askEmail = () => {
     clearInterval(timer);
-    if (join) lead.innerHTML = 'Вы записываетесь на курс в группу <b>' + esc(join.group) + '</b>' + (join.term ? ' (' + esc(join.term) + ')' : '') + '. Укажите фамилию и имя, как в журнале, и почту — на неё придёт код из 6 цифр. Пароль не нужен.';
-    else lead.textContent = 'Введите почту, которую вы дали преподавателю. На неё придёт письмо с кодом из 6 цифр. Пароль не нужен.';
+    if (join) lead.innerHTML = 'Вы записываетесь на курс в группу <b>' + esc(join.group) + '</b>' + (join.term ? ' (' + esc(join.term) + ')' : '') + '. Укажите фамилию и имя, как в журнале, и почту — на неё придёт письмо с кодом для входа. Пароль не нужен.';
+    else lead.textContent = 'Введите почту, которую вы дали преподавателю. На неё придёт письмо с кодом для входа. Пароль не нужен.';
     form.innerHTML = '';
     const nm = join ? el('input', { type: 'text', class: 'answer', placeholder: 'Фамилия Имя', autocomplete: 'name', 'aria-label': 'Фамилия и имя', maxlength: '120' }) : null;
     if (nm) nm.value = fio;
@@ -1684,9 +1684,9 @@ function loginScreen(msg, join) {
     form.append(...(nm ? [nm] : []), inp, acts(btn, ...extra)); (nm && !fio ? nm : inp).focus();
   };
   const askCode = () => {
-    lead.innerHTML = 'Код отправлен на <b>' + esc(email) + '</b>. Введите 6 цифр из письма — или просто откройте ссылку из него. Письма нет несколько минут — проверьте «Спам» и «Промоакции».';
+    lead.innerHTML = 'Код отправлен на <b>' + esc(email) + '</b>. Введите код из письма — или просто откройте ссылку из него. Письма нет несколько минут — проверьте «Спам» и «Промоакции».';
     res.hidden = true; form.innerHTML = '';
-    const code = el('input', { type: 'text', class: 'answer otp', inputmode: 'numeric', autocomplete: 'one-time-code', maxlength: '8', placeholder: '••••••', 'aria-label': 'Код из письма' });
+    const code = el('input', { type: 'text', class: 'answer otp', inputmode: 'numeric', autocomplete: 'one-time-code', maxlength: '8', placeholder: 'Код из письма', 'aria-label': 'Код из письма' });
     const ok = el('button', { class: 'primary' }, 'Войти');
     const again = el('button', { class: 'link' }), other = el('button', { class: 'link' }, 'Другая почта');
     let left = 0;
