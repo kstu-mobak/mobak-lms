@@ -311,6 +311,18 @@ table.grade.dl .src, table.grade.hist td { white-space: normal; }
 .ptabs a:hover { color: var(--text); }
 .ptabs a.on { color: var(--accent); border-bottom-color: var(--accent); }
 .ptabs > button { margin-left: auto; }
+/* контрольная на паре */
+.exambar { position: fixed; top: 8px; left: 50%; transform: translateX(-50%); z-index: 70; display: flex; gap: 10px; align-items: center; max-width: calc(100vw - 32px);
+  background: #9b1c1c; color: #fff; padding: 6px 8px 6px 14px; border-radius: 999px; font-size: 13.5px; font-weight: 600; box-shadow: 0 4px 16px rgba(0,0,0,.25); }
+.exambar .b { display: flex; gap: 6px; }
+.exambar button { background: rgba(255,255,255,.16); color: #fff; border: 1px solid rgba(255,255,255,.45); padding: 4px 10px; font-size: 13px; }
+.exlive { display: flex; flex-wrap: wrap; gap: 18px; align-items: center; }
+.excodebox { display: flex; flex-direction: column; padding: 10px 18px; border: 2px solid var(--accent); border-radius: var(--r-sm); }
+.excodebox b { font: 700 40px/1.1 var(--mono); letter-spacing: 4px; }
+.modal.excode .box { text-align: center; }
+.modal.excode .big { font: 700 min(20vw, 200px)/1 var(--mono); letter-spacing: .08em; margin: 10px 0 20px; }
+table.examtab td.hot { color: #b3261e; font-weight: 700; }
+.examgate .exCode { font: 600 22px var(--mono); letter-spacing: 4px; width: 9em; }
 .gcards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(340px, 100%), 1fr)); gap: 14px; margin: 14px 0; align-items: start; }
 .gcard { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 .gcard.new { border-style: dashed; }
@@ -725,9 +737,18 @@ const DS_LIMIT = 5 * 60 * 1000;  // как на Stepik: 5 минут на отв
 /* ---------- сервер (Supabase) ----------
    CONFIG вставляет lms/build.py из lms/config.json. Есть CONFIG — студент входит по почте, сдачи уходят на сервер,
    прогресс берётся с сервера. Нет CONFIG (тестовая сборка) — всё хранится только в браузере, как раньше. */
-const CONFIG = {"supabase_url": "https://tdyxkkylfhqpvdlbpwzs.supabase.co", "supabase_anon_key": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRkeXhra3lsZmhxcHZkbGJwd3pzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI4NzQyMTYsImV4cCI6MjEwODQ1MDIxNn0.5qUbBaZG2PNBJdbF1OYVjhmfjxVYYJR5dG_UhMQvsYo", "weights": {"week": 10, "prac": 10, "lab": 40, "ctrl": 20, "final": 15, "test": 5}};
+const CONFIG = {"supabase_url": "https://tdyxkkylfhqpvdlbpwzs.supabase.co", "supabase_anon_key": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRkeXhra3lsZmhxcHZkbGJwd3pzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI4NzQyMTYsImV4cCI6MjEwODQ1MDIxNn0.5qUbBaZG2PNBJdbF1OYVjhmfjxVYYJR5dG_UhMQvsYo", "weights": {"week": 10, "prac": 10, "lab": 40, "ctrl": 20, "final": 15, "test": 5}, "uni_modules": [{"name": "Модуль 1", "short": "М1", "max": 30, "from": 1, "to": 7}, {"name": "Модуль 2", "short": "М2", "max": 30, "from": 8, "to": 15}], "bonus_max": 20};
+// устройство: случайный id этого браузера; контрольная привязывается к нему (заголовок x-mobak-device, exam_gate в schema.sql)
+const DEVICE = (() => {
+  try {
+    let d = localStorage.getItem('mobak-device');
+    if (!d) { d = crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2); localStorage.setItem('mobak-device', d); }
+    return d;
+  } catch (e) { return 'nostore-' + Math.random().toString(16).slice(2, 14); }
+})();
 const sb = CONFIG && CONFIG.supabase_url && window.supabase
-  ? window.supabase.createClient(CONFIG.supabase_url, CONFIG.supabase_anon_key, { auth: { flowType: 'implicit', detectSessionInUrl: true, persistSession: true } })
+  ? window.supabase.createClient(CONFIG.supabase_url, CONFIG.supabase_anon_key, { auth: { flowType: 'implicit', detectSessionInUrl: true, persistSession: true },
+      global: { headers: { 'x-mobak-device': DEVICE } } })
   : null;
 const SERVER = !!(CONFIG && CONFIG.supabase_url);
 let ME = null;   // профиль вошедшего: { user_id, email, full_name, role }
@@ -1546,6 +1567,7 @@ async function lesson(l, want) {
   let data;
   try { data = await loadModule(l.mod.n); } catch (e) { m.innerHTML = '<div class="result bad">Не удалось загрузить урок. Проверьте интернет и обновите страницу.</div>'; return; }
   if (CUR !== l) return;
+  if (await examCheck(m, l, want) || CUR !== l) return;   // урок контрольной: сначала вход по коду
   const steps = data.lessons[l.mod.lessons.indexOf(l)].steps;
   m.innerHTML = '';
   m.appendChild(el('div', { class: 'crumbs' }, '<a href="#' + l.mod.lessons[0].key + '">' + (design() === 'ide' ? wdir(l.mod) + '/' + esc(slug(l.title)) : esc(l.mod.label) + ' · ' + esc(shortTitle(l.mod))) + '</a>'));
@@ -1747,6 +1769,178 @@ function authErrorFromUrl() {
   return p.get('error_code') === 'otp_expired' ? 'Ссылка для входа устарела или уже использована. Запросите новую.' : 'Вход не удался: ' + (p.get('error_description') || p.get('error'));
 }
 
+/* ---------- контрольная на паре (студент) ----------
+   Преподаватель открывает контрольную во вкладке «Контрольная» панели; студент входит по коду с доски. Сервер
+   (exam_gate в schema.sql) принимает сдачи КТ и итогового теста только во время контрольной, с устройства входа
+   (заголовок x-mobak-device), из сети аудитории и Safe Exam Browser, если преподаватель так задал. Сайт ведёт журнал:
+   уходы со страницы и из полноэкранного режима, вставки текста извне (длинные — запрещены). Курс остаётся открыт. */
+const isCtrlLesson = l => ['ctrl', 'test'].includes(category(l.title));
+const inSEB = () => !!window.SafeExamBrowser || /\bSEB\/\d/.test(navigator.userAgent);
+const SEB_FILE = 'exam/mobak-exam.seb';
+let EXAMS = null, EXAMS_AT = 0;   // идущие контрольные группы студента (my_exams), кеш на 20 с
+let EXAM = null;                  // контрольная, в которую студент вошёл с этого устройства
+async function myExams(force) {
+  if (!sb || !ME || ME.role !== 'student') return [];
+  if (!force && EXAMS && Date.now() - EXAMS_AT < 20000) return EXAMS;
+  const { data, error } = await sb.rpc('my_exams').then(r => r, e => ({ error: e }));
+  EXAMS = error ? [] : data || []; EXAMS_AT = Date.now();
+  return EXAMS;
+}
+async function sebInfo() {
+  const S = window.SafeExamBrowser;
+  if (!S || !S.security) return { seb: inSEB() };
+  try { if (S.security.updateKeys) await new Promise(ok => { S.security.updateKeys(ok); setTimeout(ok, 1500); }); } catch (e) {}
+  return { seb: true, url: location.href.split('#')[0], hash: S.security.configKey || '' };
+}
+function sebLinks() {
+  const base = location.href.split('#')[0].split('?')[0].replace(/[^/]*$/, '');
+  return '<a href="' + esc(base.replace(/^https?:/, 'sebs:') + SEB_FILE) + '">открыть в Safe Exam Browser</a> · <a href="' + esc(SEB_FILE) + '" download>скачать файл контрольной</a> · ' +
+    '<a href="https://safeexambrowser.org/download_en.html" target="_blank" rel="noopener">установить Safe Exam Browser</a> (Windows, macOS)';
+}
+// экран входа в контрольную вместо урока
+function examGate(m, l, ex, want) {
+  m.className = ''; m.innerHTML = '';
+  m.appendChild(el('h1', { class: 'lesson-h' }, esc(l.title)));
+  const box = el('section', { class: 'pblock examgate' });
+  const until = new Date(ex.ends_at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+  if (ex.joined && ex.device !== DEVICE) {
+    box.innerHTML = '<h2>Контрольная открыта на другом устройстве</h2><p>Сдавать её можно только там, где вы вошли. Если устройство сломалось или браузер закрылся — подойдите к преподавателю: он сбросит вход, и вы войдёте снова.</p>';
+    m.appendChild(box); return;
+  }
+  box.innerHTML = '<h2>Контрольная идёт до ' + until + '</h2>' +
+    '<p>Введите код с доски. Войти можно один раз и только с этого устройства. Во время контрольной курс открыт, но уходы со страницы и вставка текста извне записываются.</p>' +
+    (ex.require_seb && !inSEB() ? '<p class="result bad">Эту контрольную пишут в Safe Exam Browser: ' + sebLinks() + '.</p>' : '') +
+    '<div class="filters"><label>Код <input class="exCode" inputmode="numeric" autocomplete="off" maxlength="6" pattern="[0-9]*" placeholder="6 цифр"></label></div>';
+  const go = pbtn('Войти в контрольную', async () => {
+    const code = $('.exCode', box).value.replace(/\D/g, '');
+    if (code.length !== 6) return toast('Код — 6 цифр с доски');
+    go.disabled = true;
+    const { data, error } = await sb.rpc('exam_join', { p_code: code, p_device: DEVICE, p_seb: await sebInfo() }).then(r => r, e => ({ error: e }));
+    go.disabled = false;
+    if (error) return toast(errText(error));
+    if (!data || !data.ok) return toast((data && data.error) || 'не удалось войти');
+    try { if (document.documentElement.requestFullscreen && !document.fullscreenElement) await document.documentElement.requestFullscreen(); } catch (e) {}
+    await myExams(true);
+    lesson(l, want);
+  }, true);
+  box.appendChild(go);
+  $('.exCode', box).addEventListener('keydown', e => { if (e.key === 'Enter') go.click(); });
+  m.appendChild(box);
+}
+// журнал контрольной: события копятся и уходят пачкой раз в 5 секунд
+const EXQ = [];
+function examLog(kind, detail) {
+  if (!EXAM || EXAM.status !== 'active') return;
+  EXQ.push({ exam_id: EXAM.exam_id, user_id: ME.user_id, kind, detail: detail || null });
+}
+async function examFlush() {
+  if (!EXQ.length || !sb) return;
+  const rows = EXQ.splice(0, 50);
+  const { error } = await sb.from('exam_events').insert(rows).then(r => r, e => ({ error: e }));
+  if (error && isNetwork(error)) EXQ.unshift(...rows);
+}
+let examCopied = '', awayFrom = { hidden: 0, blur: 0 }, examTimer = null;
+function examSelText() {
+  const a = document.activeElement, cm = a && a.closest && a.closest('.CodeMirror');
+  if (cm && cm.CodeMirror) return cm.CodeMirror.getSelection();
+  return String(window.getSelection() || '');
+}
+// полоса контрольной: текст обновляется каждую секунду, кнопки — только при смене состояния (чтобы клик не терялся)
+function examBar() {
+  let b = $('#exambar');
+  if (!EXAM) { if (b) b.remove(); return; }
+  if (!b) { b = el('div', { id: 'exambar', class: 'exambar', role: 'status' }, '<span class="t"></span><span class="b"></span>'); document.body.appendChild(b); }
+  const left = Date.parse(EXAM.ends_at) - Date.now(), live = EXAM.status === 'active' && left > 0;
+  const mm = Math.max(0, Math.floor(left / 60000)), ss = Math.max(0, Math.floor(left / 1000) % 60);
+  $('.t', b).textContent = EXAM.status !== 'active' ? 'Контрольная завершена — сдачи по ней больше не принимаются'
+    : left <= 0 ? 'Время контрольной вышло'
+    : 'Контрольная · осталось ' + mm + ':' + String(ss).padStart(2, '0') + ' · уходы со страницы и вставки записываются';
+  const st = (live ? 'live' : 'off') + (document.fullscreenElement ? '-fs' : '');
+  if (b.dataset.st === st) return;
+  b.dataset.st = st;
+  const btns = $('.b', b); btns.innerHTML = '';
+  if (!live) return;
+  if (document.fullscreenEnabled && !document.fullscreenElement) btns.appendChild(el('button', { on: { click: () => document.documentElement.requestFullscreen().catch(() => {}) } }, 'На весь экран'));
+  btns.appendChild(el('button', { on: { click: async () => {
+    if (!confirm('Завершить контрольную? После этого сдавать её задачи будет нельзя.')) return;
+    await examFlush();
+    const { error } = await sb.rpc('exam_finish', { p_exam: EXAM.exam_id }).then(r => r, e => ({ error: e }));
+    if (error) return toast(errText(error));
+    EXAM.status = 'finished'; EXAMS = null; examBar(); toast('Контрольная завершена');
+  } } }, 'Завершить'));
+}
+function startExamMode(ex) {
+  if (EXAM && EXAM.exam_id === ex.exam_id) { EXAM.status = ex.status; examBar(); return; }
+  EXAM = { exam_id: ex.exam_id, section_id: ex.section_id, ends_at: ex.ends_at, status: ex.status || 'active' };
+  if (!examTimer) {
+    let tick = 0;
+    examTimer = setInterval(() => {
+      examBar();
+      if (++tick % 5 === 0) examFlush();
+      if (EXAM && Date.parse(EXAM.ends_at) < Date.now() - 60000) { examFlush(); EXAM = null; examBar(); }
+    }, 1000);
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) { awayFrom.hidden = Date.now(); examLog('hidden'); }
+      else { examLog('visible', { sec: awayFrom.hidden ? Math.round((Date.now() - awayFrom.hidden) / 1000) : null }); awayFrom.hidden = 0; examFlush(); }
+    });
+    window.addEventListener('blur', () => { awayFrom.blur = Date.now(); examLog('blur'); });
+    window.addEventListener('focus', () => { if (awayFrom.blur) examLog('focus', { sec: Math.round((Date.now() - awayFrom.blur) / 1000) }); awayFrom.blur = 0; });
+    document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement) examLog('fullscreen_exit'); examBar(); });
+    const copied = () => { if (EXAM) examCopied = examSelText(); };
+    document.addEventListener('copy', copied, true);
+    document.addEventListener('cut', copied, true);
+    document.addEventListener('paste', e => {
+      if (!EXAM || EXAM.status !== 'active') return;
+      const t = ((e.clipboardData && e.clipboardData.getData('text/plain')) || '').trim();
+      if (!t) return;
+      const own = !!examCopied && t === examCopied.trim();
+      if (own || t.length <= 20) return examLog('paste', { len: t.length, own });
+      e.preventDefault(); e.stopPropagation();
+      examLog('paste_blocked', { len: t.length });
+      toast('На контрольной вставлять текст извне нельзя — попытка записана');
+    }, true);
+    document.addEventListener('drop', e => {
+      if (!EXAM || EXAM.status !== 'active') return;
+      e.preventDefault(); e.stopPropagation(); examLog('paste_blocked', { drop: true });
+    }, true);
+  }
+  examBar();
+}
+// после входа: студент уже вошёл в контрольную с этого устройства (страницу обновили) — журнал продолжается
+async function examResume() {
+  const ex = (await myExams(true)).find(e => e.joined && e.device === DEVICE && e.status === 'active');
+  if (ex) startExamMode(ex);
+}
+// урок контрольной: если по его модулю идёт контрольная — вход по коду; true — урок не показывать
+let EXAM_MODE = null;
+async function examCheck(m, l, want) {
+  if (!SERVER || !ME || ME.role !== 'student' || !isCtrlLesson(l)) return false;
+  const ex = (await myExams()).find(e => e.section_id === l.mod.sectionId);
+  if (!ex) {
+    if (EXAM_MODE === null) { const r = await sb.rpc('my_exam_mode').then(x => x, e => ({ error: e })); EXAM_MODE = !r.error && !!r.data; }
+    if (!EXAM_MODE) return false;
+    m.className = ''; m.innerHTML = '';
+    m.appendChild(el('h1', { class: 'lesson-h' }, esc(l.title)));
+    m.appendChild(el('section', { class: 'pblock examgate' }, '<h2>Контрольная откроется на паре</h2><p>Когда преподаватель её начнёт, обновите страницу и введите код с доски. ' +
+      'Если контрольную пишут в Safe Exam Browser, подготовьте его заранее: ' + sebLinks() + '.</p>'));
+    return true;
+  }
+  if (!ex.joined || ex.device !== DEVICE) { examGate(m, l, ex, want); return true; }
+  startExamMode(ex);
+  return false;
+}
+
+// ошибки сайта у вошедших — в client_errors (руководитель видит их в «Журнале»); не больше 10 за загрузку
+const ERRS = new Set();
+function reportError(message, stack) {
+  if (!sb || !ME || ERRS.size >= 10 || ERRS.has(message)) return;
+  ERRS.add(message);
+  sb.from('client_errors').insert({ message: String(message).slice(0, 1000), stack: stack ? String(stack).slice(0, 4000) : null,
+    page: (location.hash || '#').slice(0, 300), user_agent: navigator.userAgent.slice(0, 400) }).then(() => {}, () => {});
+}
+window.addEventListener('error', e => reportError(e.message || 'ошибка', e.error && e.error.stack));
+window.addEventListener('unhandledrejection', e => { const r = e.reason; if (!isNetwork(r)) reportError('Promise: ' + ((r && r.message) || r), r && r.stack); });
+
 /* ---------- панель преподавателя ---------- */
 const WEIGHTS = (CONFIG && CONFIG.weights) || { week: 10, prac: 10, lab: 40, ctrl: 20, final: 15, test: 5 };
 // категория шага по названию урока — то же правило, что category() в stepik/teacher/weekly_report.py
@@ -1761,10 +1955,13 @@ function category(lesson) {
 const CAT_NAMES = { week: 'Задачи недели', prac: 'Практики', lab: 'ЛР', ctrl: 'КТ', final: 'Итоговая работа', test: 'Итоговый тест' };
 // работа для устной проверки (допуска) — начало названия урока: ЛР-2, КТ-1, П3, «Итоговая работа»
 const itemOf = title => { const m = /^(ЛР-\d+|КТ-\d+|П\d+|Итоговая работа|Итоговый тест)/.exec(title || ''); return m ? m[1] : null; };
-// итоговая оценка по рейтингу: шкала кредитной системы вузов КР (поменять — grade_scale в lms/config.json)
-const SCALE = (CONFIG && CONFIG.grade_scale) || [[87, 'A', 'отлично'], [80, 'B', 'хорошо'], [74, 'C', 'хорошо'], [68, 'D', 'удовлетворительно'],
-  [61, 'E', 'удовлетворительно'], [41, 'FX', 'неудовлетворительно'], [0, 'F', 'неудовлетворительно']];
-const gradeOf = r => SCALE.find(([min]) => Math.round(r) >= min) || SCALE[SCALE.length - 1];
+// модули вуза: в каждом свой рейтинг из 100 (веса WEIGHTS среди частей курса, которые в модуле есть) — коэффициент,
+// баллы модуля = рейтинг × max / 100. Допбаллы (до BONUS_MAX) ставит преподаватель вручную; экзамен (40) ставит
+// лектор — на сайте его нет, буквенную оценку без него не посчитать. Поменять — uni_modules и bonus_max в lms/config.json.
+const UNI = (CONFIG && CONFIG.uni_modules) || [{ name: 'Модуль 1', short: 'М1', max: 30, from: 1, to: 7 }, { name: 'Модуль 2', short: 'М2', max: 30, from: 8, to: 15 }];
+const BONUS_MAX = (CONFIG && CONFIG.bonus_max) || 20;
+const UNI_MAX = UNI.reduce((a, u) => a + u.max, 0);
+const uniWeeks = U => 'недели ' + U.from + '–' + Math.min(U.to, 14) + (U.to >= 15 ? ' и итоговая работа' : '');
 const DAY = 864e5;
 // роли: teacher — свои группы (teacher_groups), assistant — те же группы, но без изменения списка, сроков и ссылок,
 // admin — руководитель курса, всё
@@ -1777,26 +1974,35 @@ const linkBtn = (text, fn) => el('button', { class: 'link', on: { click: fn } },
 let TD = null;   // данные панели: roster, profiles, best (v_best), сроки, группы, ссылки, устные проверки — только то, что разрешает RLS
 async function teacherData(force) {
   if (TD && !force && Date.now() - TD.at < 60000) return TD;
-  const names = ['roster', 'profiles', 'v_best', 'deadlines', 'extensions', 'groups', 'teacher_groups', 'group_deadlines', 'group_invites', 'oral_checks'];
+  const names = ['roster', 'profiles', 'v_best', 'deadlines', 'extensions', 'groups', 'teacher_groups', 'group_deadlines', 'group_invites', 'oral_checks', 'bonus_points'];
   const res = await Promise.all(names.map(t => sb.from(t).select('*').limit(100000)));
   for (const x of res) if (x.error) throw x.error;
-  const [roster, profiles, best, deadlines, ext, groups, tg, gd, inv, oral] = res.map(x => x.data);
-  TD = { roster, profiles, best, deadlines, ext, groups, tg, gd, inv, oral, at: Date.now() };
+  const [roster, profiles, best, deadlines, ext, groups, tg, gd, inv, oral, bonus] = res.map(x => x.data);
+  TD = { roster, profiles, best, deadlines, ext, groups, tg, gd, inv, oral, bonus, at: Date.now() };
   return TD;
 }
 const reloadPanel = async sub => { TD = null; await teacher(sub); };
-// вклад каждой категории в рейтинг: вес × доля баллов категории, набранных в срок (как rating() в weekly_report.py).
+// вклад каждой категории в рейтинг из 100: вес × доля баллов категории, набранных в срок (как rating() в weekly_report.py).
+// U — модуль вуза: только его недели, веса делятся на сумму весов частей, которые в нём есть.
 // rej — работы, по которым студент «не допущен» устной проверкой: их баллы не засчитываются
-function ratingParts(bestByStep, rej) {
+function ratingParts(bestByStep, rej, U) {
   const got = {}, max = {};
   Object.values(STEPMETA).forEach(s => {
-    if (!s.cost) return;
+    if (!s.cost || (U && (s.lesson.mod.n < U.from || s.lesson.mod.n > U.to))) return;
     const c = category(s.lesson.title); max[c] = (max[c] || 0) + s.cost;
     const b = bestByStep[s.id]; if (b && !(rej && rej.has(itemOf(s.lesson.title)))) got[c] = (got[c] || 0) + s.cost * (b.best_on_time || 0);
   });
-  return Object.keys(WEIGHTS).map(c => ({ c, w: WEIGHTS[c], got: got[c] || 0, max: max[c] || 0, part: max[c] ? WEIGHTS[c] * (got[c] || 0) / max[c] : 0 }));
+  const W = Object.keys(WEIGHTS).reduce((a, c) => a + (max[c] ? WEIGHTS[c] : 0), 0) || 100;
+  return Object.keys(WEIGHTS).filter(c => max[c] || !U).map(c => ({ c, w: max[c] ? 100 * WEIGHTS[c] / W : 0, got: got[c] || 0, max: max[c] || 0,
+    part: max[c] ? 100 * WEIGHTS[c] / W * (got[c] || 0) / max[c] : 0 }));
 }
 const rating = (bestByStep, rej) => ratingParts(bestByStep, rej).reduce((a, x) => a + x.part, 0);
+// баллы для ведомости вуза: модули (рейтинг × max / 100), допбаллы, итого без экзамена
+function uniOf(bestByStep, rej, bonus) {
+  const mods = UNI.map(U => { const parts = ratingParts(bestByStep, rej, U), r = parts.reduce((a, x) => a + x.part, 0); return { U, parts, rating: r, points: r * U.max / 100 }; });
+  const b = Math.min(BONUS_MAX, Math.max(0, +bonus || 0));
+  return { mods, bonus: b, total: mods.reduce((a, x) => a + x.points, 0) + b };
+}
 const rejectedOf = (oral, uid) => new Set((oral || []).filter(o => o.user_id === uid && o.status === 'rejected').map(o => o.item));
 function studentRows(td) {
   const prof = Object.fromEntries(td.profiles.map(p => [p.email, p]));
@@ -1808,7 +2014,8 @@ function studentRows(td) {
     const last = Object.values(best).reduce((a, b) => (b.last_at > a ? b.last_at : a), '');
     const pend = Object.values(best).reduce((a, b) => a + (b.attempts - b.verified), 0);
     const parts = ratingParts(best, rej), rt = parts.reduce((a, x) => a + x.part, 0);
-    return { r, p, best, rej, mods, parts, total: mods.reduce((a, x) => a + x, 0), rating: rt, grade: gradeOf(rt), late, last, pend };
+    const bonusRow = p ? (td.bonus || []).find(b => b.user_id === p.user_id) : null;
+    return { r, p, best, rej, mods, parts, total: mods.reduce((a, x) => a + x, 0), rating: rt, uni: uniOf(best, rej, bonusRow && bonusRow.points), bonusRow, late, last, pend };
   }).sort((a, b) => a.r.full_name.localeCompare(b.r.full_name, 'ru'));
 }
 const fmtDate = t => t ? new Date(t).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
@@ -1857,7 +2064,7 @@ function nextDue(td, gname, now) {
 const dueOf = (td, gname, sid) => (td.gd.find(x => x.group_name === gname && x.section_id === sid) || td.deadlines.find(x => x.section_id === sid) || {}).due_at;
 
 // вкладки панели
-const TABS = [['', 'Группы'], ['sheet', 'Ведомость'], ['oral', 'Устная проверка'], ['stats', 'Аналитика'], ['deadlines', 'Сроки'], ['log', 'Журнал']];
+const TABS = [['', 'Группы'], ['sheet', 'Ведомость'], ['oral', 'Устная проверка'], ['exam', 'Контрольная'], ['stats', 'Аналитика'], ['deadlines', 'Сроки'], ['log', 'Журнал']];
 function panelTabs(m, cur) {
   const t = el('nav', { class: 'ptabs', 'aria-label': 'Панель преподавателя' });
   TABS.forEach(([k, name]) => {
@@ -1878,7 +2085,7 @@ async function teacher(sub) {
   try { td = await teacherData(); } catch (e) { m.innerHTML = '<div class="result bad">Не удалось загрузить данные: ' + esc(errText(e)) + '</div>'; return; }
   m.innerHTML = '';
   if (isUid) return teacherStudent(m, studentRows(td).find(x => x.p && x.p.user_id === sub), td);
-  const page = { sheet: sheetPage, oral: oralPage, stats: statsPage, deadlines: deadlinesPage, log: logPage }[sub] || panelHome;
+  const page = { sheet: sheetPage, oral: oralPage, exam: examPage, stats: statsPage, deadlines: deadlinesPage, log: logPage }[sub] || panelHome;
   return page(m, td);
 }
 
@@ -1926,13 +2133,13 @@ function groupCard(g, td, rows, now) {
   const st = rows.filter(x => x.r.group_name === g.group_name), joined = st.filter(x => x.p).length;
   const viaLink = st.filter(x => x.r.source === 'invite').length, fresh = st.filter(x => x.r.source === 'invite' && now - Date.parse(x.r.added_at) < 7 * DAY).length;
   const pend = st.reduce((a, x) => a + x.pend, 0), lazy = st.filter(x => idle(x, now)).length, rej = st.filter(x => x.rej.size).length;
-  const avg = st.length ? st.reduce((a, x) => a + x.rating, 0) / st.length : 0;
+  const avg = st.length ? st.reduce((a, x) => a + x.uni.total, 0) / st.length : 0;
   const nd = nextDue(td, g.group_name, now);
   const staff = td.tg.filter(t => t.group_name === g.group_name).map(t => nameOf(td, t.email) + ((td.roster.find(r => r.email === t.email) || {}).role === 'assistant' ? ' (ассистент)' : ''));
   const c = el('section', { class: 'gcard' + (g.archived ? ' archived' : '') });
   c.innerHTML = '<header><h2>' + esc(g.group_name) + '</h2>' + (g.term ? '<span class="small">' + esc(g.term) + '</span>' : '') + (g.archived ? '<span class="badge">архив</span>' : '') + '</header>' +
     '<div class="gstats"><div><b>' + st.length + '</b><span>' + plural(st.length, 'студент', 'студента', 'студентов') + '</span></div><div><b>' + joined + '</b><span>вошли на сайт</span></div>' +
-    '<div><b>' + fmt(avg) + '</b><span>средний рейтинг</span></div><div><b>' + pend + '</b><span>ждут проверки</span></div></div>' +
+    '<div><b>' + fmt(avg) + '</b><span>средний балл (' + UNI.map(u => u.short).join(' + ') + ' + доп.)</span></div><div><b>' + pend + '</b><span>ждут проверки</span></div></div>' +
     '<ul class="gnotes">' + [nd ? 'Ближайший срок: ' + esc(nd.label) + ' — ' + fmtDate(nd.due) : 'Ближайших сроков нет',
       lazy ? '<span class="warn">без сдач больше недели: ' + lazy + '</span>' : '',
       rej ? '<span class="warn">не допущены по устной проверке: ' + rej + '</span>' : '',
@@ -2068,10 +2275,14 @@ function sheetPage(m, td) {
   m.appendChild(acts);
   const wrap = el('div', { class: 'gwrap' });
   m.appendChild(wrap);
-  m.appendChild(el('p', { class: 'small' }, 'Баллы — проверенные сервером и сданные в срок группы (с учётом продлений); работы с «не допущен» по устной проверке не засчитываются. Рейтинг — из 100 по весам ' +
-    Object.entries(WEIGHTS).map(([c, w]) => CAT_NAMES[c] + ' ' + w).join(', ') + '. Оценка — по шкале ' + SCALE.map(([n, l]) => l + ' от ' + n).join(', ') +
-    '. Максимум по модулям: ' + CAT.modules.map(M => (M.n === 15 ? 'И' : M.n) + ' — ' + modStat(M).m).join(', ') + '.'));
-  const key = { name: x => x.r.full_name, group: x => x.r.group_name || '', total: x => x.total, rating: x => x.rating, pend: x => x.pend, last: x => x.last || '' };
+  m.appendChild(el('p', { class: 'small' }, 'Баллы — проверенные сервером и сданные в срок группы (с учётом продлений); работы с «не допущен» по устной проверке не засчитываются. ' +
+    UNI.map(U => U.short + ' — ' + U.name.toLowerCase() + ' вуза (' + uniWeeks(U) + '), до ' + U.max).join('; ') + ': рейтинг модуля из 100 по весам ' +
+    Object.entries(WEIGHTS).map(([c, w]) => CAT_NAMES[c] + ' ' + w).join(', ') + ' (части, которых в модуле нет, не считаются) × ' + fmt(UNI[0].max / 100) + '. ' +
+    'Доп. — до ' + BONUS_MAX + ', ставится вручную в карточке студента. Итого — без экзамена (экзамен до 40 ставит лектор). ' +
+    'Максимум по неделям: ' + CAT.modules.map(M => (M.n === 15 ? 'И' : M.n) + ' — ' + modStat(M).m).join(', ') + '.'));
+  const key = { name: x => x.r.full_name, group: x => x.r.group_name || '', total: x => x.total, uni: x => x.uni.total, pend: x => x.pend, last: x => x.last || '' };
+  UNI.forEach((U, i) => { key['u' + i] = x => x.uni.mods[i].points; });
+  key.bonus = x => x.uni.bonus;
   const filtered = () => {
     const s = SHEET.q.trim().toLowerCase();
     return shown.filter(x => !s || x.r.full_name.toLowerCase().includes(s) || x.r.email.includes(s))
@@ -2086,10 +2297,12 @@ function sheetPage(m, td) {
     info.textContent = 'Студентов: ' + shown.length + (rows.length !== shown.length ? ', найдено: ' + rows.length : '') + ', вошли на сайт: ' + shown.filter(x => x.p).length + '.';
     const t = el('table', { class: 'grade sheet' });
     t.innerHTML = '<tr>' + th('name', 'Студент') + th('group', 'Группа') + CAT.modules.map(M => '<th title="' + esc(M.title) + '">' + (M.n === 15 ? 'И' : M.n) + '</th>').join('') +
-      th('total', 'Баллы') + th('rating', 'Рейтинг') + '<th>Оценка</th>' + th('pend', 'Ждут', 'Сдачи, которые сервер ещё не перепроверил') + th('last', 'Последняя сдача') + '<th>Состояние</th></tr>' +
+      th('total', 'Баллы') + UNI.map((U, i) => th('u' + i, U.short, U.name + ': ' + uniWeeks(U) + ', до ' + U.max)).join('') + th('bonus', 'Доп.', 'Дополнительные баллы, до ' + BONUS_MAX) +
+      th('uni', 'Итого', 'Модули + доп., без экзамена; до ' + (UNI_MAX + BONUS_MAX)) + th('pend', 'Ждут', 'Сдачи, которые сервер ещё не перепроверил') + th('last', 'Последняя сдача') + '<th>Состояние</th></tr>' +
       rows.map(x => '<tr><td>' + (x.p ? '<a href="#teacher/' + x.p.user_id + '">' + esc(x.r.full_name) + '</a>' : esc(x.r.full_name)) + '</td><td>' + esc(x.r.group_name || '') + '</td>' +
-        x.mods.map(v => '<td>' + (v ? fmt(v) : '') + '</td>').join('') + '<td><b>' + fmt(x.total) + '</b></td><td><b>' + fmt(x.rating) + '</b></td><td title="' + esc(x.grade[2]) + '">' + x.grade[1] + '</td><td>' + (x.pend || '') + '</td><td>' + fmtDate(x.last) + '</td><td class="st">' + status(x) + '</td></tr>').join('');
-    if (!rows.length) t.innerHTML += '<tr><td colspan="' + (CAT.modules.length + 8) + '" class="small">' + (shown.length ? 'Никого не нашлось.' : 'В группе пока нет студентов — откройте запись по ссылке во вкладке «Группы» или добавьте списком.') + '</td></tr>';
+        x.mods.map(v => '<td>' + (v ? fmt(v) : '') + '</td>').join('') + '<td><b>' + fmt(x.total) + '</b></td>' + x.uni.mods.map(u => '<td title="рейтинг модуля ' + fmt(u.rating) + ' из 100">' + fmt(u.points) + '</td>').join('') +
+        '<td>' + (x.uni.bonus ? fmt(x.uni.bonus) : '') + '</td><td><b>' + fmt(x.uni.total) + '</b></td><td>' + (x.pend || '') + '</td><td>' + fmtDate(x.last) + '</td><td class="st">' + status(x) + '</td></tr>').join('');
+    if (!rows.length) t.innerHTML += '<tr><td colspan="' + (CAT.modules.length + UNI.length + 9) + '" class="small">' + (shown.length ? 'Никого не нашлось.' : 'В группе пока нет студентов — откройте запись по ссылке во вкладке «Группы» или добавьте списком.') + '</td></tr>';
     t.querySelectorAll('button.sort').forEach(b => b.onclick = () => { const k = b.dataset.k; SHEET.dir = SHEET.sort === k ? -SHEET.dir : (k === 'name' || k === 'group' ? 1 : -1); SHEET.sort = k; draw(); });
     wrap.innerHTML = ''; wrap.appendChild(t);
   };
@@ -2104,7 +2317,8 @@ function teacherStudent(m, x, td) {
   m.appendChild(el('h1', { class: 'lesson-h' }, esc(x.r.full_name)));
   m.appendChild(el('p', { class: 'small' }, esc(x.r.email) + (x.r.group_name ? ' · группа ' + esc(x.r.group_name) : '') + ' · ' + (x.r.source === 'invite' ? 'записался по ссылке ' : 'в списке с ') + fmtDate(x.r.added_at) +
     ' · согласие на обработку данных: ' + (x.r.consent_at ? fmtDate(x.r.consent_at) : 'не отмечено') +
-    ' · баллы в срок ' + fmt(x.total) + ' из ' + CAT.total + ' · рейтинг ' + fmt(x.rating) + ' из 100 · оценка ' + x.grade[1] + ' («' + x.grade[2] + '»)'));
+    ' · баллы в срок ' + fmt(x.total) + ' из ' + CAT.total + ' · ' + x.uni.mods.map(u => u.U.short + ' ' + fmt(u.points) + ' из ' + u.U.max).join(' · ') +
+    ' · доп. ' + fmt(x.uni.bonus) + ' · итого без экзамена ' + fmt(x.uni.total)));
   const ex = td.ext.filter(e => e.user_id === x.p.user_id);
   if (ex.length) m.appendChild(el('p', { class: 'small' }, 'Продления: ' + ex.map(e => esc((CAT.modules.find(M => M.sectionId === e.section_id) || { label: e.section_id }).label) + ' — до ' + fmtDate(e.due_at)).join(', ')));
   const acts = el('div', { class: 'actions' });
@@ -2129,6 +2343,7 @@ function teacherStudent(m, x, td) {
     }));
   }
   if (acts.children.length) m.appendChild(acts);
+  m.appendChild(bonusBlock(x));
   m.appendChild(oralBlock(x, td, () => teacher(x.p.user_id)));
   CAT.modules.forEach(M => {
     const tasks = M.lessons.flatMap(l => l.steps.filter(s => isTask(s)).map(s => [l, s]));
@@ -2145,6 +2360,32 @@ function teacherStudent(m, x, td) {
 
 // устные проверки студента по работам курса: допущен / не допущен / не проверялся
 const ITEMS = () => [...new Set(LESSONS.map(l => itemOf(l.title)).filter(Boolean))];
+// модули вуза и допбаллы студента; допбаллы меняет преподаватель (не ассистент)
+function bonusBlock(x) {
+  const box = el('section', { class: 'pblock' }, '<h2>Баллы для ведомости вуза</h2>');
+  const t = el('table', { class: 'grade' });
+  t.innerHTML = '<tr><th>Модуль</th><th>Рейтинг модуля</th><th>Баллы</th></tr>' + x.uni.mods.map(u => '<tr><td>' + esc(u.U.name) + ' <span class="small">(' + uniWeeks(u.U) + ')</span></td><td>' + fmt(u.rating) + ' из 100</td><td><b>' + fmt(u.points) + '</b> из ' + u.U.max + '</td></tr>').join('') +
+    '<tr><td>Дополнительные</td><td class="small">' + (x.bonusRow ? esc(x.bonusRow.note || '') + (x.bonusRow.set_by ? ' · ' + esc(x.bonusRow.set_by) + ', ' + fmtDate(x.bonusRow.set_at) : '') : 'не ставились') + '</td><td><b>' + fmt(x.uni.bonus) + '</b> из ' + BONUS_MAX + '</td></tr>' +
+    '<tr><td><b>Итого без экзамена</b></td><td></td><td><b>' + fmt(x.uni.total) + '</b></td></tr>';
+  box.appendChild(el('div', { style: 'overflow-x:auto' })).appendChild(t);
+  if (isTeacher() && x.p) {
+    const f = el('div', { class: 'filters' }, '<label>Доп. баллы <input type="number" class="bnP" min="0" max="' + BONUS_MAX + '" step="0.5" value="' + (x.bonusRow ? x.bonusRow.points : '') + '"></label>' +
+      '<label>За что <input type="text" class="bnN" maxlength="500" placeholder="олимпиада, доклад, помощь группе" value="' + esc((x.bonusRow && x.bonusRow.note) || '') + '"></label>');
+    f.appendChild(pbtn('Сохранить', async () => {
+      const v = $('.bnP', f).value.trim(), pts = v === '' ? null : +v;
+      if (pts !== null && !(pts >= 0 && pts <= BONUS_MAX)) return toast('Доп. баллы — от 0 до ' + BONUS_MAX);
+      const q = pts === null ? sb.from('bonus_points').delete().eq('user_id', x.p.user_id)
+        : sb.from('bonus_points').upsert({ user_id: x.p.user_id, points: pts, note: $('.bnN', f).value.trim() || null }, { onConflict: 'user_id' });
+      const { error } = await q.then(r => r, e => ({ error: e }));
+      if (error) return toast(errText(error));
+      TD = null; toast(pts === null ? 'Доп. баллы убраны' : 'Доп. баллы сохранены'); teacher(x.p.user_id);
+    }, true));
+    box.appendChild(f);
+    box.appendChild(el('p', { class: 'small' }, 'Пустое поле — убрать доп. баллы. Изменения видны в «Журнале».'));
+  }
+  return box;
+}
+
 function oralBlock(x, td, after, only) {
   const box = el('section', { class: 'pblock' }, '<h2>Устная проверка (допуск)</h2><p class="small">«Не допущен» — баллы за работу не идут в рейтинг, пока студент не объяснит свой код (тогда отметьте «допущен»).</p>');
   const items = only || ITEMS();
@@ -2199,10 +2440,12 @@ async function showAnswer(x, stepId) {
 }
 
 function exportRows(rows) {
-  const head = ['№', 'ФИО', 'Почта', 'Группа', ...CAT.modules.map(M => M.label), 'Баллы в срок', ...Object.keys(WEIGHTS).map(c => CAT_NAMES[c] + ' (из ' + WEIGHTS[c] + ')'),
-    'Рейтинг из 100', 'Оценка', 'Оценка словом', 'Не допущен', 'Ждут проверки', 'Последняя сдача'];
-  return [head].concat(rows.map((x, i) => [i + 1, x.r.full_name, x.r.email, x.r.group_name || '', ...x.mods.map(v => Math.round(v * 100) / 100), Math.round(x.total * 100) / 100,
-    ...x.parts.map(p => Math.round(p.part * 100) / 100), Math.round(x.rating * 100) / 100, x.grade[1], x.grade[2], [...x.rej].join(', '), x.pend, x.last ? fmtDate(x.last) : '']));
+  const r2 = v => Math.round(v * 100) / 100;
+  const head = ['№', 'ФИО', 'Почта', 'Группа', ...CAT.modules.map(M => M.label), 'Баллы в срок',
+    ...UNI.flatMap(U => [U.name + ': рейтинг из 100', U.name + ' (из ' + U.max + ')']), 'Доп. баллы (из ' + BONUS_MAX + ')', 'Итого без экзамена (из ' + (UNI_MAX + BONUS_MAX) + ')',
+    'Не допущен', 'Ждут проверки', 'Последняя сдача'];
+  return [head].concat(rows.map((x, i) => [i + 1, x.r.full_name, x.r.email, x.r.group_name || '', ...x.mods.map(r2), r2(x.total),
+    ...x.uni.mods.flatMap(u => [r2(u.rating), r2(u.points)]), r2(x.uni.bonus), r2(x.uni.total), [...x.rej].join(', '), x.pend, x.last ? fmtDate(x.last) : '']));
 }
 const exportName = (g, ext) => 'МОБАК_ведомость_' + (g && g !== '-' ? g.replace(/[^\p{L}\p{N}-]+/gu, '_') + '_' : '') + new Date().toISOString().slice(0, 10) + '.' + ext;
 function csv(rows, g) {
@@ -2423,6 +2666,140 @@ async function oralPage(m, td) {
 }
 
 /* аналитика: активность по дням, трудные шаги, прохождение модулей */
+/* контрольная на паре: открыть для группы, код на доску, наблюдение за входами, уходами, вставками и сдачами */
+let EXAM_POLL = null;
+const ctrlModules = () => CAT.modules.filter(M => M.lessons.some(isCtrlLesson));
+const ctrlSteps = sid => { const M = CAT.modules.find(x => x.sectionId === sid); return M ? M.lessons.filter(isCtrlLesson).flatMap(l => l.steps.filter(s => isTask(s) && s.cost)) : []; };
+const modName = sid => { const M = CAT.modules.find(x => x.sectionId === sid); return M ? M.label + ' · ' + M.lessons.filter(isCtrlLesson).map(l => itemOf(l.title) || l.title).join(', ') : 'модуль ' + sid; };
+const hhmm = t => new Date(t).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+async function examPage(m, td) {
+  if (EXAM_POLL) { clearInterval(EXAM_POLL); EXAM_POLL = null; }
+  panelTabs(m, 'exam');
+  m.appendChild(el('h1', { class: 'lesson-h' }, 'Контрольная на паре'));
+  const g = curGroup(td);
+  groupBar(m, td, g, () => teacher('exam'));
+  if (!g || g === '-') { m.appendChild(el('div', { class: 'result' }, 'Выберите группу — контрольная открывается для одной группы.')); return; }
+  const grp = td.groups.find(x => x.group_name === g) || {};
+  if (isTeacher()) {
+    const mode = el('label', { class: 'chk' }, '<input type="checkbox"' + (grp.exam_mode ? ' checked' : '') + '> КТ и итоговый тест этой группы — только в режиме контрольной (до начала контрольной урок закрыт, сдачи не принимаются)');
+    $('input', mode).onchange = async e => {
+      const { error } = await sb.rpc('exam_mode_set', { p_group: g, p_on: e.target.checked }).then(r => r, x => ({ error: x }));
+      if (error) { e.target.checked = !e.target.checked; return toast(errText(error)); }
+      TD = null; toast(e.target.checked ? 'Режим контрольной включён' : 'Режим контрольной выключен');
+    };
+    m.appendChild(el('div', { class: 'filters' })).appendChild(mode);
+  }
+  const box = el('div'); m.appendChild(box);
+  const { data: exams, error } = await sb.from('exams').select('*').eq('group_name', g).order('starts_at', { ascending: false }).limit(30);
+  if (error) { box.innerHTML = '<div class="result bad">' + esc(errText(error)) + '</div>'; return; }
+  const now = Date.now(), live = exams.find(e => !e.closed_at && Date.parse(e.ends_at) > now);
+  if (live) examLive(box, td, g, live);
+  else if (isTeacher()) examForm(box, g);
+  else box.appendChild(el('div', { class: 'result' }, 'Сейчас контрольной нет. Открывает её преподаватель группы.'));
+  const past = exams.filter(e => e !== live);
+  if (past.length) {
+    const t = el('table', { class: 'grade hist' });
+    t.innerHTML = '<tr><th>Когда</th><th>Модуль</th><th>До</th><th>Условия</th></tr>' + past.map(e => '<tr><td>' + fmtDate(e.starts_at) + '</td><td>' + esc(modName(e.section_id)) + '</td><td>' + hhmm(e.closed_at && e.closed_at < e.ends_at ? e.closed_at : e.ends_at) + '</td><td>' +
+      [e.networks && e.networks.length ? 'сеть ' + e.networks.join(', ') : '', e.require_seb ? 'Safe Exam Browser' : ''].filter(Boolean).join(' · ') + '</td></tr>').join('');
+    const d = el('details', { class: 'pblock' }, '<summary>Прошедшие контрольные — ' + past.length + '</summary>');
+    d.appendChild(el('div', { style: 'overflow-x:auto' })).appendChild(t);
+    m.appendChild(d);
+  }
+  m.appendChild(el('p', { class: 'small' }, 'Пока для группы и модуля есть хоть одна контрольная, сервер принимает сдачи КТ и итогового теста этого модуля только во время открытой контрольной и только с устройства, с которого студент вошёл по коду. ' +
+    'Пересдача — новая контрольная по тому же модулю. Как подготовить ноутбуки и сеть — памятка lms/exam/README.md.'));
+}
+function examForm(box, g) {
+  const mods = ctrlModules();
+  const f = el('section', { class: 'pblock' }, '<h2>Начать контрольную</h2>' +
+    '<div class="filters"><label>Модуль <select class="exM">' + mods.map(M => '<option value="' + M.sectionId + '">' + esc(modName(M.sectionId)) + '</option>').join('') + '</select></label>' +
+    '<label>Длительность, мин <input type="number" class="exT" min="5" max="600" value="90"></label></div>' +
+    '<div class="filters"><label class="chk"><input type="checkbox" class="exNet"> только из сети аудитории</label><label>Сети <input type="text" class="exNets" placeholder="203.0.113.7 или 10.5.0.0/16" size="28"></label></div>' +
+    '<div class="filters"><label class="chk"><input type="checkbox" class="exSeb"> только в Safe Exam Browser</label><label>Config Key <input type="text" class="exKey" placeholder="необязательно" size="28"></label></div>' +
+    '<p class="small">Сеть: подключитесь к Wi-Fi аудитории и нажмите «Мой адрес» — сайт подставит адрес, с которого вуз выходит в интернет. Safe Exam Browser: студенты заранее ставят его и открывают ' +
+    '<a href="' + SEB_FILE + '" download>файл контрольной</a>; в нём открыт только сайт курса. Config Key (из SEB Config Tool) — чтобы принимать только наш файл настроек.</p>');
+  const ipBtn = pbtn('Мой адрес', async () => {
+    const { data, error } = await sb.rpc('my_ip').then(r => r, e => ({ error: e }));
+    if (error || !data) return toast(error ? errText(error) : 'Сервер не видит ваш адрес');
+    $('.exNets', f).value = data; $('.exNet', f).checked = true;
+  });
+  $('.exNets', f).after(ipBtn);
+  f.appendChild(pbtn('Начать контрольную', async () => {
+    const nets = $('.exNet', f).checked ? $('.exNets', f).value.split(/[\s,;]+/).filter(Boolean) : [];
+    if ($('.exNet', f).checked && !nets.length) return toast('Укажите сеть аудитории или нажмите «Мой адрес»');
+    const { error } = await sb.rpc('exam_open', { p_group: g, p_section: +$('.exM', f).value, p_minutes: +$('.exT', f).value || 90,
+      p_require_seb: $('.exSeb', f).checked, p_networks: nets, p_seb_key: $('.exKey', f).value.trim() || null }).then(r => r, e => ({ error: e }));
+    if (error) return toast(errText(error));
+    teacher('exam');
+  }, true));
+  box.appendChild(f);
+}
+function examCodeFull(code) {
+  const md = el('div', { class: 'modal excode' }, '<div class="box"><div class="big">' + esc(code.slice(0, 3) + ' ' + code.slice(3)) + '</div><p>Код контрольной · ' + esc(location.host + location.pathname) + '</p><button class="primary">Закрыть</button></div>');
+  $('button', md).onclick = () => md.remove();
+  md.addEventListener('click', e => { if (e.target === md) md.remove(); });
+  document.body.appendChild(md);
+  try { md.requestFullscreen && md.requestFullscreen().catch(() => {}); } catch (e) {}
+}
+function examLive(box, td, g, ex) {
+  const head = el('section', { class: 'pblock exlive' });
+  const manage = act => async (extra) => {
+    const { error } = await sb.rpc('exam_manage', Object.assign({ p_exam: ex.id, p_action: act }, extra || {})).then(r => r, e => ({ error: e }));
+    if (error) return toast(errText(error));
+    teacher('exam');
+  };
+  head.innerHTML = '<div class="excodebox"><span class="small">Код на доску</span><b>' + esc(ex.code.slice(0, 3) + ' ' + ex.code.slice(3)) + '</b></div>' +
+    '<div><h2>' + esc(modName(ex.section_id)) + '</h2><p class="small">Начата ' + hhmm(ex.starts_at) + ', до <b>' + hhmm(ex.ends_at) + '</b> · ' +
+    [ex.networks && ex.networks.length ? 'только из сети ' + esc(ex.networks.join(', ')) : 'из любой сети', ex.require_seb ? 'только в Safe Exam Browser' + (ex.seb_key ? ' с нашими настройками' : '') : 'любой браузер'].join(' · ') + '</p></div>';
+  const acts = el('div', { class: 'actions' });
+  acts.append(pbtn('Код на весь экран', () => examCodeFull(ex.code), true));
+  if (isTeacher()) acts.append(pbtn('Новый код', () => manage('new_code')()), pbtn('+10 минут', () => manage('extend')({ p_minutes: 10 })),
+    pbtn('Завершить для всех', () => { if (confirm('Завершить контрольную? Сдачи по ней перестанут приниматься.')) manage('close')(); }));
+  head.appendChild(acts);
+  box.appendChild(head);
+  const wrap = el('div', { style: 'overflow-x:auto' }), info = el('p', { class: 'small' });
+  box.append(info, wrap);
+  const steps = ctrlSteps(ex.section_id), ids = steps.map(s => s.id), maxPts = steps.reduce((a, s) => a + s.cost, 0);
+  const students = inGroup(studentRows(td), td, g);
+  const draw = async () => {
+    if (!document.body.contains(wrap)) { clearInterval(EXAM_POLL); EXAM_POLL = null; return; }
+    const [at, ev, su] = await Promise.all([sb.from('exam_attempts').select('*').eq('exam_id', ex.id),
+      sb.from('exam_events').select('*').eq('exam_id', ex.id).limit(20000),
+      ids.length ? sb.from('submissions').select('id, user_id, step_id, prelim_score, created_at').in('step_id', ids).limit(20000) : { data: [] }]);
+    const bad = [at, ev, su].find(x => x.error);
+    if (bad) { info.textContent = 'Не удалось обновить: ' + errText(bad.error); return; }
+    const t0 = ex.starts_at, subs = su.data.filter(s => s.created_at >= t0);
+    const rows = students.map(x => {
+      const uid = x.p && x.p.user_id, a = at.data.find(r => r.user_id === uid), e = ev.data.filter(r => r.user_id === uid);
+      const away = e.filter(r => r.kind === 'focus' || r.kind === 'visible'), awaySec = e.filter(r => r.kind === 'focus').reduce((s, r) => s + ((r.detail && r.detail.sec) || 0), 0);
+      const best = {}; subs.filter(s => s.user_id === uid).forEach(s => { best[s.step_id] = Math.max(best[s.step_id] || 0, s.prelim_score || 0); });
+      const pts = steps.reduce((s0, s) => s0 + s.cost * (best[s.id] || 0), 0);
+      return { x, a, e, away: away.length, awaySec, fsExit: e.filter(r => r.kind === 'fullscreen_exit').length, blocked: e.filter(r => r.kind === 'paste_blocked').length,
+        pastes: e.filter(r => r.kind === 'paste' && !(r.detail && r.detail.own)).length, other: e.filter(r => r.kind === 'other_device').length, solved: Object.keys(best).length, pts };
+    });
+    const joined = rows.filter(r => r.a).length;
+    info.textContent = 'Вошли ' + joined + ' из ' + rows.length + ' · сдали хотя бы один шаг ' + rows.filter(r => r.solved).length + ' · обновляется раз в 15 секунд, последнее — ' + hhmm(Date.now()) +
+      '. Баллы — предварительные (браузер студента); проверенные сервером — в ведомости после перепроверки.';
+    const t = el('table', { class: 'grade examtab' });
+    t.innerHTML = '<tr><th>Студент</th><th>Статус</th><th>Вход</th><th title="Уходил со страницы или из окна браузера">Уходы</th><th title="Выходил из полноэкранного режима">Экран</th><th title="Заблокированные вставки длинного текста извне / короткие вставки">Вставки</th><th>Шагов</th><th>Баллы</th><th></th></tr>' +
+      rows.map(r => {
+        const st = !r.x.p ? '<span class="badge">не входил на сайт</span>' : !r.a ? '<span class="badge">не вошёл</span>' : r.a.status === 'finished' ? '<span class="badge full">завершил</span>' : '<span class="badge part">пишет</span>';
+        const warn = r.other ? ' <span class="badge late" title="Пытался войти с другого устройства">другое устройство ×' + r.other + '</span>' : '';
+        return '<tr data-u="' + esc((r.x.p && r.x.p.user_id) || '') + '"><td>' + esc(r.x.r.full_name) + '</td><td>' + st + warn + '</td><td class="small">' + (r.a ? hhmm(r.a.started_at) + (r.a.seb ? ' · SEB' : '') + (r.a.ip ? ' · ' + esc(r.a.ip) : '') : '') + '</td>' +
+          '<td' + (r.awaySec > 60 ? ' class="hot"' : '') + '>' + (r.away ? r.away + ' · ' + Math.round(r.awaySec / 60 * 10) / 10 + ' мин' : '') + '</td><td>' + (r.fsExit || '') + '</td><td' + (r.blocked ? ' class="hot"' : '') + '>' + (r.blocked || r.pastes ? r.blocked + ' / ' + r.pastes : '') + '</td>' +
+          '<td>' + (r.solved ? r.solved + ' из ' + steps.length : '') + '</td><td>' + (r.solved ? fmt(r.pts) + ' из ' + maxPts : '') + '</td><td></td></tr>';
+      }).join('');
+    if (isTeacher()) t.querySelectorAll('tr[data-u]').forEach(tr => {
+      const r = rows.find(z => z.x.p && z.x.p.user_id === tr.dataset.u); if (!r || !r.a) return;
+      const cell = tr.lastElementChild;
+      cell.appendChild(linkBtn('Сбросить вход', () => { if (confirm('Сбросить вход ' + r.x.r.full_name + '? Студент войдёт по коду заново — например, с другого устройства.')) manage('reset_device')({ p_user: r.x.p.user_id }); }));
+      if (r.a.status === 'finished') cell.appendChild(linkBtn('Вернуть', () => manage('reopen_student')({ p_user: r.x.p.user_id })));
+    });
+    wrap.innerHTML = ''; wrap.appendChild(t);
+  };
+  draw();
+  EXAM_POLL = setInterval(draw, 15000);
+}
+
 async function statsPage(m, td) {
   panelTabs(m, 'stats');
   m.appendChild(el('h1', { class: 'lesson-h' }, 'Аналитика'));
@@ -2464,7 +2841,7 @@ async function statsPage(m, td) {
 }
 
 /* журнал действий: кто и что менял (audit_log, пишут триггеры базы) */
-const LOG_TABLES = { roster: 'список', groups: 'группы', teacher_groups: 'преподаватели групп', group_invites: 'ссылки', deadlines: 'общие сроки', group_deadlines: 'сроки групп', extensions: 'продления', oral_checks: 'устные проверки', submission_notes: 'замечания' };
+const LOG_TABLES = { roster: 'список', groups: 'группы', teacher_groups: 'преподаватели групп', group_invites: 'ссылки', deadlines: 'общие сроки', group_deadlines: 'сроки групп', extensions: 'продления', oral_checks: 'устные проверки', submission_notes: 'замечания', bonus_points: 'доп. баллы', exams: 'контрольные' };
 let LOGF = { t: '', q: '' };
 async function logPage(m, td) {
   panelTabs(m, 'log');
@@ -2493,6 +2870,8 @@ async function logPage(m, td) {
       case 'extensions': return 'продление ' + stu(v.user_id) + ', ' + mod(v.section_id) + ': ' + act + (n.due_at ? ' до ' + fmtDate(n.due_at) : '');
       case 'oral_checks': return 'устная проверка ' + stu(v.user_id) + ', ' + esc(v.item) + ': ' + (r.action === 'delete' ? 'отметка снята' : v.status === 'rejected' ? 'не допущен' : 'допущен') + (n.note ? ' («' + esc(n.note) + '»)' : '');
       case 'submission_notes': return 'замечание к сдаче: «' + esc((v.body || '').slice(0, 120)) + '»' + (r.action === 'delete' ? ' — удалено' : '');
+      case 'bonus_points': return 'доп. баллы ' + stu(v.user_id) + ': ' + (r.action === 'delete' ? 'убраны' : fmt(+n.points) + (o.points !== undefined && r.action === 'update' ? ' (было ' + fmt(+o.points) + ')' : '')) + (n.note ? ' («' + esc(n.note) + '»)' : '');
+      case 'exams': return 'контрольная ' + esc(v.group_name) + ', ' + mod(v.section_id) + ': ' + (r.action === 'insert' ? 'начата до ' + fmtDate(n.ends_at) : r.action === 'update' && !o.closed_at && n.closed_at ? 'завершена' : r.action === 'update' && o.ends_at !== n.ends_at ? 'продлена до ' + fmtDate(n.ends_at) : act);
     }
     return esc(r.table_name) + ': ' + act;
   };
@@ -2507,6 +2886,17 @@ async function logPage(m, td) {
   $('.lgT', bar).onchange = e => { LOGF.t = e.target.value; teacher('log'); };
   const qi = $('.lgQ', bar); qi.value = LOGF.q; qi.addEventListener('input', () => { LOGF.q = qi.value; draw(); });
   draw();
+  // руководителю — ошибки сайта у студентов и преподавателей (client_errors)
+  if (isAdmin()) {
+    const { data: errs, error: e2 } = await sb.from('client_errors').select('*').order('at', { ascending: false }).limit(100);
+    if (e2 || !errs || !errs.length) return;
+    const d = el('details', { class: 'pblock' }, '<summary><b>Ошибки сайта</b> — ' + errs.length + ' последних</summary><p class="small">Сбои в браузерах вошедших: страница, сообщение, браузер. Повторяющиеся — повод проверить сайт.</p>');
+    const t = el('table', { class: 'grade log' });
+    t.innerHTML = '<tr><th>Когда</th><th>Кто</th><th>Страница</th><th>Ошибка</th></tr>' + errs.map(x => '<tr><td>' + fmtDate(x.at) + '</td><td>' + esc(nameByUid(td, x.user_id) || '') + '</td><td>' + esc(x.page || '') +
+      '</td><td title="' + esc((x.stack || '') + ' · ' + (x.user_agent || '')) + '">' + esc(x.message) + '</td></tr>').join('');
+    d.appendChild(el('div', { style: 'overflow-x:auto' })).appendChild(t);
+    m.appendChild(d);
+  }
 }
 
 /* сроки: общие сроки курса (руководитель) и сроки группы (преподаватель своих групп) */
@@ -2629,7 +3019,7 @@ async function cabinet() {
   CUR = null; drawSide();
   const m = $('#main'); m.className = ''; m.innerHTML = '<div class="loading">Загрузка кабинета…</div>';
   const mine = q => q.eq('user_id', ME.user_id);
-  const [vb, vd, sub, ro, oc, nt, dts, pf, bd] = await Promise.all([
+  const [vb, vd, sub, ro, oc, nt, dts, pf, bd, bn] = await Promise.all([
     mine(sb.from('v_best').select('*')).limit(10000),
     mine(sb.from('v_deadlines').select('*')).limit(1000),
     mine(sb.from('submissions').select('id, step_id, prelim_score, created_at')).order('created_at', { ascending: false }).limit(100),
@@ -2638,7 +3028,8 @@ async function cabinet() {
     sb.from('submission_notes').select('*').order('created_at', { ascending: false }).limit(200),
     mine(sb.from('submissions').select('created_at')).limit(20000),
     mine(sb.from('student_prefs').select('*')).maybeSingle(),
-    sb.rpc('group_board')]);
+    sb.rpc('group_board'),
+    mine(sb.from('bonus_points').select('*')).maybeSingle()]);
   const err = [vb, vd, sub, ro, oc, nt, dts, pf].find(x => x.error);
   if (err) { m.innerHTML = '<div class="result bad">Не удалось загрузить кабинет: ' + esc(errText(err.error)) + '</div>'; return; }
   const ids = sub.data.map(s => s.id), noteSubs = [...new Set(nt.data.map(n => n.submission_id))];
@@ -2655,7 +3046,7 @@ async function cabinet() {
   const modPts = M => M.lessons.reduce((a, l) => rej.has(itemOf(l.title)) ? a : l.steps.reduce((x, s) => { const b = best[s.id]; return b ? { t: x.t + s.cost * (b.best_on_time || 0), l: x.l + s.cost * (b.best_late && !b.best_on_time ? b.best_late : 0) } : x; }, a), { t: 0, l: 0 });
   const pts = CAT.modules.map(modPts), total = pts.reduce((a, p) => a + p.t, 0);
   const pend = vb.data.reduce((a, b) => a + (b.attempts - b.verified), 0);
-  const parts = ratingParts(best, rej), rate = parts.reduce((a, x) => a + x.part, 0), gr = gradeOf(rate);
+  const uni = uniOf(best, rej, bn && !bn.error && bn.data ? bn.data.points : 0);
   const upcoming = CAT.modules.map(M => [M, dl[M.sectionId]]).filter(([M, d]) => d && d.due_at && Date.parse(d.due_at) > now && modPts(M).t < modStat(M).m)
     .sort((a, b) => Date.parse(a[1].due_at) - Date.parse(b[1].due_at))[0];
   const inDays = t => { const d = Math.ceil((Date.parse(t) - now) / DAY); return d <= 1 ? 'меньше суток' : 'через ' + d + ' ' + plural(d, 'день', 'дня', 'дней'); };
@@ -2665,7 +3056,8 @@ async function cabinet() {
   m.appendChild(el('p', { class: 'small' }, esc(ME.full_name || '') + ' · ' + esc(ME.email) + (group ? ' · группа ' + esc(group) : '')));
   m.appendChild(el('div', { class: 'tiles' },
     '<div class="tile"><b>' + fmt(total) + '</b><span>из ' + CAT.total + ' баллов в срок</span></div>' +
-    '<div class="tile"><b>' + fmt(rate) + '</b><span>рейтинг из 100 · сейчас это «' + esc(gr[2]) + '» (' + gr[1] + ')</span></div>' +
+    uni.mods.map(u => '<div class="tile"><b>' + fmt(u.points) + '</b><span>' + esc(u.U.name.toLowerCase()) + ', из ' + u.U.max + ' (' + uniWeeks(u.U) + ')</span></div>').join('') +
+    '<div class="tile"><b>' + fmt(uni.bonus) + '</b><span>доп. баллы, из ' + BONUS_MAX + (bn && bn.data && bn.data.note ? ' · ' + esc(bn.data.note) : '') + '</span></div>' +
     '<div class="tile"><b>' + pend + '</b><span>' + plural(pend, 'сдача ждёт', 'сдачи ждут', 'сдач ждут') + ' проверки сервера</span></div>' +
     '<div class="tile"><b>' + (upcoming ? fmtDate(upcoming[1].due_at) : '—') + '</b><span>' + (upcoming ? 'ближайший срок: ' + esc(upcoming[0].label) + ', ' + inDays(upcoming[1].due_at) : 'ближайших сроков нет') + '</span></div>'));
   m.appendChild(el('p', { class: 'small' }, 'Здесь — баллы, проверенные сервером (раз в час). Сразу после сдачи на страницах уроков виден предварительный балл из браузера; в кабинет он попадёт после перепроверки.'));
@@ -2699,13 +3091,25 @@ async function cabinet() {
   }).join('');
   m.appendChild(el('div', { style: 'overflow-x:auto' })).appendChild(t);
 
-  m.appendChild(el('h2', {}, 'Из чего складывается рейтинг'));
-  const r = el('table', { class: 'grade' });
-  r.innerHTML = '<tr><th>Часть курса</th><th>Вес</th><th>Набрано в срок</th><th>Вклад</th></tr>' +
-    parts.map(x => '<tr><td>' + CAT_NAMES[x.c] + '</td><td>' + x.w + '</td><td>' + fmt(x.got) + ' из ' + x.max + '</td><td>' + fmt(x.part) + '</td></tr>').join('') +
-    '<tr><td><b>Итого</b></td><td>100</td><td></td><td><b>' + fmt(rate) + '</b></td></tr>';
-  m.appendChild(el('div', { style: 'overflow-x:auto' })).appendChild(r);
-  m.appendChild(el('p', { class: 'small' }, 'Оценка по рейтингу: ' + SCALE.map(([n, l, w]) => l + ' — от ' + n + ' («' + w + '»)').join(', ') + '.'));
+  m.appendChild(el('h2', {}, 'Из чего складываются баллы модулей'));
+  uni.mods.forEach(u => {
+    const r = el('table', { class: 'grade' });
+    r.innerHTML = '<tr><th>' + esc(u.U.name) + ' (' + uniWeeks(u.U) + ')</th><th>Вес</th><th>Набрано в срок</th><th>Вклад в рейтинг</th></tr>' +
+      u.parts.map(x => '<tr><td>' + CAT_NAMES[x.c] + '</td><td>' + fmt(x.w) + '</td><td>' + fmt(x.got) + ' из ' + x.max + '</td><td>' + fmt(x.part) + '</td></tr>').join('') +
+      '<tr><td><b>Рейтинг модуля</b></td><td>100</td><td></td><td><b>' + fmt(u.rating) + '</b> → <b>' + fmt(u.points) + '</b> из ' + u.U.max + '</td></tr>';
+    m.appendChild(el('div', { style: 'overflow-x:auto' })).appendChild(r);
+  });
+  m.appendChild(el('p', { class: 'small' }, 'Баллы модуля = рейтинг модуля из 100 × ' + fmt(UNI[0].max / 100) + '. Итого без экзамена: ' + fmt(uni.total) + ' из ' + (UNI_MAX + BONUS_MAX) +
+    ' (' + UNI.map(u => u.short + ' до ' + u.max).join(', ') + ', доп. до ' + BONUS_MAX + '). Экзамен (до 40) ставит лектор.'));
+
+  // готовность к контрольной: открыт ли сайт в Safe Exam Browser, с какого адреса, какое устройство
+  const ready = el('details', { class: 'pblock' }, '<summary><b>Готовность к контрольной</b></summary><p class="small">Проверьте за неделю до КТ: откройте сайт в Safe Exam Browser в Wi-Fi аудитории.</p>');
+  const rt = el('table', { class: 'grade' });
+  rt.innerHTML = '<tr><td>Safe Exam Browser</td><td>' + (inSEB() ? '<span class="badge full">да</span>' : '<span class="badge">нет</span> — ' + sebLinks()) + '</td></tr>' +
+    '<tr><td>Адрес сети</td><td class="rIp">…</td></tr><tr><td>Устройство</td><td>' + esc(DEVICE.slice(0, 8)) + '</td></tr>';
+  ready.appendChild(el('div', { style: 'overflow-x:auto' })).appendChild(rt);
+  ready.addEventListener('toggle', () => { if (ready.open) sb.rpc('my_ip').then(r => { $('.rIp', rt).textContent = (r && r.data) || 'не определён'; }, () => { $('.rIp', rt).textContent = 'не определён'; }); }, { once: true });
+  m.appendChild(ready);
 
   m.appendChild(el('h2', {}, 'Достижения'));
   const ach = achievements(best, rej, dts.data.map(x => x.created_at));
@@ -2789,7 +3193,7 @@ function helpModal() {
   md.innerHTML = '<div class="box wide"><h2>Справка</h2>' + (staff ?
     '<p><b>Группы.</b> Создайте группу на вкладке «Группы» и откройте запись по ссылке — разошлите её в чат группы. Студент вводит ФИО и почту, вводит код из письма и сразу попадает в группу.</p>' +
     '<p><b>Сроки.</b> «Сроки» → выберите группу → «Заполнить по расписанию» по дате первой пары → «Сохранить». Продление одному студенту — в ведомости или в его карточке.</p>' +
-    '<p><b>Ведомость.</b> Баллы в срок, рейтинг из 100 и оценка; выгрузка в xlsx и CSV. Карточка студента: ответы, замечания к сдаче, устная проверка, перевод в другую группу, исключение.</p>' +
+    '<p><b>Ведомость.</b> Баллы в срок, модули вуза (М1 — недели 1–7, М2 — 8–14 и итоговая, по 30: рейтинг модуля × 0,3), доп. баллы (до 20) и итог без экзамена; выгрузка в xlsx и CSV. Карточка студента: доп. баллы, ответы, замечания к сдаче, устная проверка, перевод в другую группу, исключение.</p>' +
     '<p><b>Устная проверка.</b> Вкладка подбирает, кого вызвать на паре по модулю: сходство решений, «ЛР высоко / КТ низко», случайная выборка. «Не допущен» — баллы за работу не идут в рейтинг до пересдачи.</p>' +
     '<p><b>Аналитика и журнал.</b> Активность по дням, самые трудные шаги, кто и что менял.</p>' +
     '<p><b>Перепроверка.</b> Сервер перепроверяет сдачи раз в час с 08:00 до 23:00 по Бишкеку. Если сдачи ждут дольше 2 часов, на вкладке «Группы» появится предупреждение.</p>'
@@ -2938,6 +3342,7 @@ $('#moreBtn').onclick = menu;
   ME = prof;
   loadLocal(KEY + ':' + ME.user_id);
   try { await loadPrefs(); } catch (e) {}
+  examResume().catch(() => {});
   try { if (localStorage.getItem(KEY + '-consent')) sb.rpc('accept_terms').then(() => {}); } catch (e) {}
   S.uid = ME.user_id; S.name = ME.full_name || ME.email;   // uid — seed личных данных (общий с перепроверкой)
   const hb = isStaff() ? el('button', { class: 'primary', on: { click: () => { location.hash = 'teacher'; } } }, 'Панель')
