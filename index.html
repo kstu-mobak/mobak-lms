@@ -29,9 +29,9 @@
 /* Три оформления одного сайта: data-design = key («Ключ», по умолчанию) | ide («Рабочее место») | note («Тетрадь»).
    Логика и разметка шагов общие; оформления меняют токены ниже и раскладку (блоки «ОФОРМЛЕНИЕ …» в конце). */
 :root, :root[data-design="key"] {
-  --bg: #f6f5fb; --panel: #ffffff; --panel2: #f0eef8; --text: #19162e; --muted: #5e5a78; --faint: #8a86a3; --line: #e4e1f0; --line2: #d3cfe4;
+  --bg: #f6f5fb; --panel: #ffffff; --panel2: #f0eef8; --text: #19162e; --muted: #5e5a78; --faint: #6c697f; --line: #e4e1f0; --line2: #d3cfe4;
   --accent: #5b3df5; --accent-hover: #4a2ee0; --accent-soft: #ece8ff; --on-accent: #ffffff;
-  --ok: #128a4e; --ok-soft: #e1f5e9; --warn: #9a5a00; --warn-soft: #fcf0d9; --bad: #d63c41; --bad-soft: #fde8e8; --code-bg: #f8f7fc;
+  --ok: #107c46; --ok-soft: #e1f5e9; --warn: #9a5a00; --warn-soft: #fcf0d9; --bad: #c1363a; --bad-soft: #fde8e8; --code-bg: #f8f7fc;
   --bit: #ffc93c; --bit-ink: #3b2a00;
   --hl-k: #7b3fe4; --hl-s: #128a4e; --hl-n: #b45309; --hl-b: #2563eb; --hl-c: #8a86a3;
   --font: "Manrope", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; --display: "Unbounded", "Manrope", system-ui, sans-serif; --mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
@@ -51,7 +51,7 @@
 }
 /* «Рабочее место»: тёмная по умолчанию, светлая — по выбору */
 :root[data-design="ide"] {
-  --bg: #12161d; --panel: #171c25; --panel2: #1d2430; --text: #d9dee7; --muted: #8c97a8; --faint: #6b7687; --line: #2a3240; --line2: #364051;
+  --bg: #12161d; --panel: #171c25; --panel2: #1d2430; --text: #d9dee7; --muted: #8c97a8; --faint: #868f9d; --line: #2a3240; --line2: #364051;
   --accent: #f2b13d; --accent-hover: #ffc35a; --accent-soft: #2e2716; --on-accent: #12161d;
   --ok: #5cc98d; --ok-soft: #16301f; --warn: #f2b13d; --warn-soft: #2e2716; --bad: #f0736a; --bad-soft: #3a1f1d; --code-bg: #0f1319;
   --bit: #f2b13d; --bit-ink: #12161d;
@@ -61,14 +61,14 @@
   color-scheme: dark;
 }
 :root[data-design="ide"][data-theme="light"] {
-  --bg: #f3f4f6; --panel: #ffffff; --panel2: #eceff3; --text: #1d232d; --muted: #5a6474; --faint: #7b8494; --line: #d6dbe2; --line2: #c3cad4;
-  --accent: #a15f00; --accent-hover: #844d00; --accent-soft: #fbefdc; --on-accent: #ffffff;
+  --bg: #f3f4f6; --panel: #ffffff; --panel2: #eceff3; --text: #1d232d; --muted: #5a6474; --faint: #626a76; --line: #d6dbe2; --line2: #c3cad4;
+  --accent: #9b5b00; --accent-hover: #844d00; --accent-soft: #fbefdc; --on-accent: #ffffff;
   --ok: #1b7a48; --ok-soft: #e2f3e9; --warn: #a15f00; --warn-soft: #fbefdc; --bad: #bf3a30; --bad-soft: #fbe7e5; --code-bg: #fbfbfc;
   --hl-k: #8a3fc4; --hl-s: #2b7a3d; --hl-n: #a15f00; --hl-b: #0b6f93; --hl-c: #7b8494; --shadow-lg: 0 12px 32px rgba(29,35,45,.18); color-scheme: light;
 }
 /* «Тетрадь» */
 :root[data-design="note"] {
-  --bg: #fbfcfe; --panel: #ffffff; --panel2: #f1f5fa; --text: #1c2b4a; --muted: #5d6679; --faint: #808a9c; --line: #cfd8e5; --line2: #b9c4d4; --grid: #e6edf6;
+  --bg: #fbfcfe; --panel: #ffffff; --panel2: #f1f5fa; --text: #1c2b4a; --muted: #5d6679; --faint: #666e7d; --line: #cfd8e5; --line2: #b9c4d4; --grid: #e6edf6;
   --accent: #1c2b4a; --accent-hover: #d2423b; --accent-soft: #e8eef8; --on-accent: #ffffff; --rule: #d2423b;
   --ok: #23774a; --ok-soft: #e4f2ea; --warn: #9a5a00; --warn-soft: #fbefdc; --bad: #c2362f; --bad-soft: #fbe9e7; --code-bg: #f1f5fa;
   --bit: #d2423b; --bit-ink: #fff;
@@ -78,12 +78,12 @@
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) { :root[data-design="note"]:not([data-theme="light"]) {
-  --bg: #121824; --panel: #161e2c; --panel2: #1b2435; --text: #dfe5ef; --muted: #98a2b5; --faint: #7a8498; --line: #2c374b; --line2: #3a4760; --grid: #1a2232;
+  --bg: #121824; --panel: #161e2c; --panel2: #1b2435; --text: #dfe5ef; --muted: #98a2b5; --faint: #858ea0; --line: #2c374b; --line2: #3a4760; --grid: #1a2232;
   --accent: #dfe5ef; --accent-hover: #ff7468; --accent-soft: #1f2a3e; --on-accent: #121824; --rule: #ff7468;
   --ok: #6fd39a; --ok-soft: #173024; --warn: #f0b356; --warn-soft: #3a2d16; --bad: #ff7468; --bad-soft: #3a1f22; --code-bg: #182132;
   --hl-k: #d6a3ff; --hl-s: #8fe0ad; --hl-n: #ffb37a; --hl-b: #9dbcff; --hl-c: #7a8498; --shadow-lg: 0 12px 32px rgba(0,0,0,.5); color-scheme: dark; } }
 :root[data-design="note"][data-theme="dark"] {
-  --bg: #121824; --panel: #161e2c; --panel2: #1b2435; --text: #dfe5ef; --muted: #98a2b5; --faint: #7a8498; --line: #2c374b; --line2: #3a4760; --grid: #1a2232;
+  --bg: #121824; --panel: #161e2c; --panel2: #1b2435; --text: #dfe5ef; --muted: #98a2b5; --faint: #858ea0; --line: #2c374b; --line2: #3a4760; --grid: #1a2232;
   --accent: #dfe5ef; --accent-hover: #ff7468; --accent-soft: #1f2a3e; --on-accent: #121824; --rule: #ff7468;
   --ok: #6fd39a; --ok-soft: #173024; --warn: #f0b356; --warn-soft: #3a2d16; --bad: #ff7468; --bad-soft: #3a1f22; --code-bg: #182132;
   --hl-k: #d6a3ff; --hl-s: #8fe0ad; --hl-n: #ffb37a; --hl-b: #9dbcff; --hl-c: #7a8498; --shadow-lg: 0 12px 32px rgba(0,0,0,.5); color-scheme: dark;
@@ -167,7 +167,7 @@ main { padding: 28px 40px 96px; width: 100%; min-width: 0; margin: 0 auto; max-w
 
 /* значки типов шагов («файлы») */
 .fi { flex: none; width: 18px; height: 16px; border-radius: 3px; display: inline-grid; place-items: center; font: 700 9.5px/1 var(--mono); color: #fff; }
-.fi.md { background: #4a8fe0; } .fi.quiz { background: #a06ee8; } .fi.py { background: #e0a526; color: #1b1400; } .fi.parsons { background: #2fb39c; } .fi.txt { background: #7d8798; }
+.fi.md { background: #4a8fe0; } .fi.quiz { background: #a06ee8; } .fi.py { background: #e0a526; color: #1b1400; } .fi.parsons { background: #2fb39c; } .fi.txt { background: #5f6878; }
 
 /* урок: общие элементы */
 .crumbs { color: var(--muted); font-size: 14px; }
@@ -202,6 +202,7 @@ main { padding: 28px 40px 96px; width: 100%; min-width: 0; margin: 0 auto; max-w
 .opt .fb { display: block; font-size: 14px; color: var(--muted); margin-top: 2px; }
 .opt p { margin: 0; }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 14px; }
+.actions button { white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 .result { margin-top: 14px; padding: 12px 16px; border-radius: var(--r-sm); border: 1px solid var(--line); border-left-width: 4px; background: var(--panel2); white-space: pre-wrap; font-size: 15px; }
 .result.ok { border-color: var(--ok); background: var(--ok-soft); }
 .result.part { border-color: var(--warn); background: var(--warn-soft); }
@@ -300,21 +301,40 @@ table.grade.dl input { font-size: 14px; padding: 5px 8px; }
 table.grade.dl .src, table.grade.hist td { white-space: normal; }
 .filters { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; margin: 10px 0; }
 .filters label { display: inline-flex; gap: 8px; align-items: center; font-size: 14px; color: var(--muted); }
+.filters label, .filters select, .filters input:not([type=checkbox]) { max-width: 100%; min-width: 0; }
+.filters select { text-overflow: ellipsis; }
 .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin: 16px 0 8px; }
 .tile { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; }
 .tile b { font: 700 24px/1.15 var(--display); font-variant-numeric: tabular-nums; }
 .tile span { font-size: 13.5px; color: var(--muted); }
 .badge.late { background: var(--bad-soft); color: var(--bad); }
 #main > h2 { margin-top: 26px; margin-bottom: 10px; font: 700 19px/1.3 var(--display); }
-.ptabs { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 14px 0 6px; border-bottom: 1px solid var(--line); }
-.ptabs a { padding: 9px 14px; color: var(--muted); text-decoration: none; font-weight: 600; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.ptabs { display: flex; flex-wrap: nowrap; align-items: center; gap: 2px; margin: 14px 0 6px; border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: thin; }
+.ptabs a { padding: 9px 12px; color: var(--muted); text-decoration: none; font-weight: 600; border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap; flex: none; }
+.ptabs > button { flex: none; white-space: nowrap; }
+:root[data-design="note"] .ptabs a { font-size: 15px; padding: 9px 10px; }
 .ptabs a:hover { color: var(--text); }
 .ptabs a.on { color: var(--accent); border-bottom-color: var(--accent); }
 .ptabs > button { margin-left: auto; }
+@media (max-width: 600px) {
+  .menu-btn, #moreBtn { min-height: 38px; }
+  .ptabs > button, button.link { min-height: 36px; }
+  :root[data-design="ide"] .side a.ls { padding-top: 8px; padding-bottom: 8px; }
+  :root[data-design="key"] .stepbar a { position: relative; }
+  :root[data-design="key"] .stepbar a::after { content: ""; position: absolute; inset: -14px 0; }
+}
 /* контрольная на паре */
-.exambar { position: fixed; top: 8px; left: 50%; transform: translateX(-50%); z-index: 70; display: flex; gap: 10px; align-items: center; max-width: calc(100vw - 32px);
+.exambar { position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%); z-index: 70; display: flex; gap: 10px; align-items: center; max-width: calc(100vw - 32px);
   background: #9b1c1c; color: #fff; padding: 6px 8px 6px 14px; border-radius: 999px; font-size: 13.5px; font-weight: 600; box-shadow: 0 4px 16px rgba(0,0,0,.25); }
 .exambar .b { display: flex; gap: 6px; }
+:root[data-design="ide"] .exambar { bottom: 40px; }
+body.exam-on { padding-bottom: 76px; }
+@media (max-width: 600px) {
+  .exambar, :root[data-design="ide"] .exambar { left: 0; right: 0; bottom: 0; transform: none; max-width: none; border-radius: 0; justify-content: space-between; padding: 6px 10px; font-size: 13px; }
+  :root[data-design="ide"] .exambar { bottom: 26px; }
+  .exambar .w { display: none; }
+  body.exam-on { padding-bottom: 60px; }
+}
 .exambar button { background: rgba(255,255,255,.16); color: #fff; border: 1px solid rgba(255,255,255,.45); padding: 4px 10px; font-size: 13px; }
 .exlive { display: flex; flex-wrap: wrap; gap: 18px; align-items: center; }
 .excodebox { display: flex; flex-direction: column; padding: 10px 18px; border: 2px solid var(--accent); border-radius: var(--r-sm); }
@@ -367,7 +387,19 @@ label.consent input { margin-top: 3px; }
 .ach span { font-size: 13px; color: var(--muted); }
 .ach i { display: block; height: 6px; border-radius: 3px; background: linear-gradient(90deg, var(--accent) var(--p), var(--line) var(--p)); }
 table.grade.board tr.me td { font-weight: 700; background: var(--panel2); }
-table.grade.oral input { width: 100%; min-width: 180px; font-size: 14px; padding: 5px 8px; }
+table.grade.oral input { width: 100%; min-width: 250px; font-size: 14px; padding: 5px 8px; }
+table.grade.bn td { white-space: normal; }
+.examgate .exCode::placeholder { letter-spacing: normal; font-size: 16px; }
+/* телефон: устная проверка — карточками, а не широкой таблицей */
+@media (max-width: 600px) {
+  table.grade.oral, table.grade.oral tbody, table.grade.oral tr, table.grade.oral td { display: block; width: 100%; }
+  table.grade.oral tr:first-child { display: none; }
+  table.grade.oral tr { padding: 8px 10px; border-bottom: 1px solid var(--line); }
+  table.grade.oral tr:last-child { border-bottom: none; }
+  table.grade.oral td { border: none; padding: 3px 0; min-width: 0; }
+  table.grade.oral td:first-child { font-weight: 700; }
+  table.grade.oral input, table.grade.oral select { min-width: 0; width: 100%; }
+}
 table.grade.oral td, table.grade.log td { white-space: normal; text-align: left; }
 .ocard h3 { margin: 10px 0 4px; font-size: 15px; }
 .ocard ol { margin: 0; padding-left: 20px; }
@@ -488,7 +520,7 @@ body.bare main { max-width: 620px; padding-top: 12vh; }
 .now .sum { font-size: 14px; color: var(--muted); margin-top: 14px; }
 .route .wk { display: grid; grid-template-columns: 64px minmax(0, 1fr) auto; gap: 4px 18px; align-items: center; padding: 16px 4px; border-bottom: 2px solid var(--line); text-decoration: none; color: inherit; }
 .route .wk:hover .t { color: var(--accent); }
-.route .n { font: 700 30px var(--display); color: var(--line2); }
+.route .n { font: 700 30px var(--display); color: var(--faint); }
 .route .wk.has .n { color: var(--accent); }
 .route .t { font-weight: 800; font-size: 17px; }
 .route .ls { font-size: 14px; color: var(--muted); }
@@ -501,7 +533,7 @@ body.bare main { max-width: 620px; padding-top: 12vh; }
 .fin h2 { font: 700 clamp(22px, 3vw, 30px)/1.25 var(--display); }
 .fin .dump { margin: 22px 0 14px; }
 @media (max-width: 860px) { .kh { grid-template-columns: minmax(0, 1fr); padding: 22px 18px; border-radius: 22px; gap: 20px; } :root[data-design="key"] .step { padding: 18px 16px 0; border-radius: 18px; } :root[data-design="key"] .step > .actions { margin: 16px -16px 0; padding: 12px 16px; } }
-@media (max-width: 480px) { .dump { grid-template-columns: auto repeat(8, minmax(0, 1fr)) auto; gap: 4px; width: 100%; } .bit { width: auto; height: 34px; font-size: 13px; border-radius: 7px; } .dump .off { padding-right: 2px; font-size: 12px; } .dump .hx { padding-left: 4px; font-size: 12px; min-width: 0; } .route .wk { grid-template-columns: 40px minmax(0, 1fr) auto; gap: 2px 12px; } .route .n { font-size: 22px; } .route .ls { display: none; } :root[data-design="key"] .actions button.primary { flex: 1; min-width: 0; } }
+@media (max-width: 480px) { .dump { grid-template-columns: auto repeat(8, minmax(0, 1fr)) auto; gap: 4px; width: 100%; } .bit { width: auto; height: 34px; font-size: 13px; border-radius: 7px; } .dump .off { padding-right: 2px; font-size: 12px; } .dump .hx { padding-left: 4px; font-size: 12px; min-width: 0; } .route .wk { grid-template-columns: 40px minmax(0, 1fr) auto; gap: 2px 12px; } .route .n { font-size: 22px; } .route .ls { display: none; } :root[data-design="key"] .actions button.primary { flex: 1 0 auto; max-width: 100%; } }
 
 /* ===== ОФОРМЛЕНИЕ «РАБОЧЕЕ МЕСТО» ===== */
 :root[data-design="ide"] body { font-size: 15px; font-weight: 400; padding-bottom: 26px; }
@@ -1529,7 +1561,7 @@ function homeIde(m) {
   const started = ([l]) => lstate(l) === 'part';
   const todo = unsolved.filter(started).concat(unsolved.filter(x => !started(x))).slice(0, 8);
   const b8 = (g, mx) => { const k = mx ? Math.round(8 * g / mx) : 0; return '█'.repeat(k) + '<i>' + '█'.repeat(8 - k) + '</i>'; };
-  const prog = CAT.modules.map(M => { const ms = modStat(M); return '<a href="#' + M.lessons[0].key + '"><span class="n">' + (M.n === 15 ? 'И' : M.n) + '</span><span class="nm">' + esc(shortTitle(M)) + '</span><span class="b8">' + b8(ms.g, ms.m) + '</span><span class="p">' + fmt(ms.g) + '/' + ms.m + '</span></a>'; }).join('');
+  const prog = CAT.modules.map(M => { const ms = modStat(M); return '<a href="#' + M.lessons[0].key + '"><span class="n">' + (M.n === 15 ? 'И' : M.n) + '</span><span class="nm">' + esc(shortTitle(M)) + '</span><span class="b8" aria-hidden="true">' + b8(ms.g, ms.m) + '</span><span class="p">' + fmt(ms.g) + '/' + ms.m + '</span></a>'; }).join('');
   const probs = todo.map(([l, s]) => '<a href="#' + l.key + '/' + s.num + '"><span class="ic' + (started([l]) ? ' part' : '') + '">' + (started([l]) ? '●' : '○') + '</span><span>' + TYPE[s.t] + ' не решена: ' + esc(strip(s.title).slice(0, 52)) + '</span><span class="pts">' + s.cost + ' б.</span><span class="p">' + wdir(l.mod) + '/' + esc(slug(l.title)) + '/' + esc(fname(s)) + '</span></a>').join('');
   const ws = el('div', { class: 'ws' }, '<div class="ws-grid"><div>' +
     '<h1 class="md-h" data-h="#">Математические основы и базовые алгоритмы криптографии</h1><p>Теория, тесты и программы на Python в одном окне. Код запускается и проверяется прямо здесь, ничего устанавливать не нужно.</p>' +
@@ -1848,13 +1880,14 @@ function examSelText() {
 // полоса контрольной: текст обновляется каждую секунду, кнопки — только при смене состояния (чтобы клик не терялся)
 function examBar() {
   let b = $('#exambar');
+  document.body.classList.toggle('exam-on', !!EXAM);
   if (!EXAM) { if (b) b.remove(); return; }
   if (!b) { b = el('div', { id: 'exambar', class: 'exambar', role: 'status' }, '<span class="t"></span><span class="b"></span>'); document.body.appendChild(b); }
   const left = Date.parse(EXAM.ends_at) - Date.now(), live = EXAM.status === 'active' && left > 0;
   const mm = Math.max(0, Math.floor(left / 60000)), ss = Math.max(0, Math.floor(left / 1000) % 60);
-  $('.t', b).textContent = EXAM.status !== 'active' ? 'Контрольная завершена — сдачи по ней больше не принимаются'
+  $('.t', b).innerHTML = EXAM.status !== 'active' ? 'Контрольная завершена<span class="w"> — сдачи по ней больше не принимаются</span>'
     : left <= 0 ? 'Время контрольной вышло'
-    : 'Контрольная · осталось ' + mm + ':' + String(ss).padStart(2, '0') + ' · уходы со страницы и вставки записываются';
+    : 'Контрольная · осталось ' + mm + ':' + String(ss).padStart(2, '0') + '<span class="w"> · уходы со страницы и вставки записываются</span>';
   const st = (live ? 'live' : 'off') + (document.fullscreenElement ? '-fs' : '');
   if (b.dataset.st === st) return;
   b.dataset.st = st;
@@ -2139,7 +2172,7 @@ function groupCard(g, td, rows, now) {
   const c = el('section', { class: 'gcard' + (g.archived ? ' archived' : '') });
   c.innerHTML = '<header><h2>' + esc(g.group_name) + '</h2>' + (g.term ? '<span class="small">' + esc(g.term) + '</span>' : '') + (g.archived ? '<span class="badge">архив</span>' : '') + '</header>' +
     '<div class="gstats"><div><b>' + st.length + '</b><span>' + plural(st.length, 'студент', 'студента', 'студентов') + '</span></div><div><b>' + joined + '</b><span>вошли на сайт</span></div>' +
-    '<div><b>' + fmt(avg) + '</b><span>средний балл (' + UNI.map(u => u.short).join(' + ') + ' + доп.)</span></div><div><b>' + pend + '</b><span>ждут проверки</span></div></div>' +
+    '<div><b>' + fmt(avg) + '</b><span title="' + UNI.map(u => u.short).join(' + ') + ' + доп., без экзамена">средний итог</span></div><div><b>' + pend + '</b><span>ждут проверки</span></div></div>' +
     '<ul class="gnotes">' + [nd ? 'Ближайший срок: ' + esc(nd.label) + ' — ' + fmtDate(nd.due) : 'Ближайших сроков нет',
       lazy ? '<span class="warn">без сдач больше недели: ' + lazy + '</span>' : '',
       rej ? '<span class="warn">не допущены по устной проверке: ' + rej + '</span>' : '',
@@ -2363,7 +2396,7 @@ const ITEMS = () => [...new Set(LESSONS.map(l => itemOf(l.title)).filter(Boolean
 // модули вуза и допбаллы студента; допбаллы меняет преподаватель (не ассистент)
 function bonusBlock(x) {
   const box = el('section', { class: 'pblock' }, '<h2>Баллы для ведомости вуза</h2>');
-  const t = el('table', { class: 'grade' });
+  const t = el('table', { class: 'grade bn' });
   t.innerHTML = '<tr><th>Модуль</th><th>Рейтинг модуля</th><th>Баллы</th></tr>' + x.uni.mods.map(u => '<tr><td>' + esc(u.U.name) + ' <span class="small">(' + uniWeeks(u.U) + ')</span></td><td>' + fmt(u.rating) + ' из 100</td><td><b>' + fmt(u.points) + '</b> из ' + u.U.max + '</td></tr>').join('') +
     '<tr><td>Дополнительные</td><td class="small">' + (x.bonusRow ? esc(x.bonusRow.note || '') + (x.bonusRow.set_by ? ' · ' + esc(x.bonusRow.set_by) + ', ' + fmtDate(x.bonusRow.set_at) : '') : 'не ставились') + '</td><td><b>' + fmt(x.uni.bonus) + '</b> из ' + BONUS_MAX + '</td></tr>' +
     '<tr><td><b>Итого без экзамена</b></td><td></td><td><b>' + fmt(x.uni.total) + '</b></td></tr>';
@@ -2709,9 +2742,12 @@ async function examPage(m, td) {
     'Пересдача — новая контрольная по тому же модулю. Как подготовить ноутбуки и сеть — памятка lms/exam/README.md.'));
 }
 function examForm(box, g) {
-  const mods = ctrlModules();
+  const mods = ctrlModules(), day = Date.now() - DAY;
+  // по умолчанию — модуль с ближайшей парой (сегодня или позже), иначе последний
+  const pairAt = M => { const d = (TD && (TD.gd.find(x => x.group_name === g && x.section_id === M.sectionId) || TD.deadlines.find(x => x.section_id === M.sectionId))) || {}; return d.class_start ? Date.parse(d.class_start) : null; };
+  const next = mods.filter(M => pairAt(M) !== null && pairAt(M) >= day).sort((a, b) => pairAt(a) - pairAt(b))[0] || mods[mods.length - 1];
   const f = el('section', { class: 'pblock' }, '<h2>Начать контрольную</h2>' +
-    '<div class="filters"><label>Модуль <select class="exM">' + mods.map(M => '<option value="' + M.sectionId + '">' + esc(modName(M.sectionId)) + '</option>').join('') + '</select></label>' +
+    '<div class="filters"><label>Модуль <select class="exM">' + mods.map(M => '<option value="' + M.sectionId + '"' + (M === next ? ' selected' : '') + '>' + esc(modName(M.sectionId)) + '</option>').join('') + '</select></label>' +
     '<label>Длительность, мин <input type="number" class="exT" min="5" max="600" value="90"></label></div>' +
     '<div class="filters"><label class="chk"><input type="checkbox" class="exNet"> только из сети аудитории</label><label>Сети <input type="text" class="exNets" placeholder="203.0.113.7 или 10.5.0.0/16" size="28"></label></div>' +
     '<div class="filters"><label class="chk"><input type="checkbox" class="exSeb"> только в Safe Exam Browser</label><label>Config Key <input type="text" class="exKey" placeholder="необязательно" size="28"></label></div>' +
@@ -3125,7 +3161,7 @@ async function cabinet() {
   }
   const pr = pf.data || {};
   const set = el('section', { class: 'pblock' }, '<h2>Настройки</h2><label class="chk"><input type="checkbox" class="sbShow"' + (pr.show_in_board ? ' checked' : '') + '> показывать моё имя в таблице лидеров группы</label>' +
-    '<div class="filters"><label>Как подписать <input type="text" class="sbNick" maxlength="30" placeholder="Фамилия И. (по умолчанию)"></label></div><div class="actions"></div>' +
+    '<div class="filters"><label>Как подписать <input type="text" class="sbNick" maxlength="30" size="26" placeholder="Фамилия И. (по умолчанию)"></label></div><div class="actions"></div>' +
     '<p class="small">Оформление и тема, выбранные в меню «⋯», сохраняются для всех ваших устройств. <a href="#" class="ppLink">Как обрабатываются ваши данные</a></p>');
   $('.sbNick', set).value = pr.nickname || '';
   $('.ppLink', set).onclick = e => { e.preventDefault(); privacyModal(); };
