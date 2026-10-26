@@ -118,7 +118,7 @@ button.primary:hover { background: var(--accent-hover); border-color: var(--acce
 button:disabled, button:disabled:hover { opacity: .5; cursor: default; }
 button.link { border: none; background: none; color: var(--accent); padding: 4px 6px; font-weight: 600; }
 button.link:hover { text-decoration: underline; }
-input[type=text], input[type=email], input[type=number], input[type=datetime-local], textarea, select { font: 500 16px var(--font); color: var(--text); background: var(--panel); border: var(--bw) solid var(--line2); border-radius: var(--r-sm); padding: 9px 12px; }
+input[type=text], input[type=email], input[type=number], input[type=datetime-local], input[type=search], input[type=date], input[type=time], textarea, select { font: 500 16px var(--font); color: var(--text); background: var(--panel); border: var(--bw) solid var(--line2); border-radius: var(--r-sm); padding: 9px 12px; }
 input:focus, textarea:focus, select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 ::selection { background: var(--accent-soft); }
@@ -311,6 +311,44 @@ table.grade.dl .src, table.grade.hist td { white-space: normal; }
 .tile span { font-size: 13.5px; color: var(--muted); }
 .badge.late { background: var(--bad-soft); color: var(--bad); }
 #main > h2 { margin-top: 26px; margin-bottom: 10px; font: 700 19px/1.3 var(--display); }
+.ptabs { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 14px 0 6px; border-bottom: 1px solid var(--line); }
+.ptabs a { padding: 9px 14px; color: var(--muted); text-decoration: none; font-weight: 600; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.ptabs a:hover { color: var(--text); }
+.ptabs a.on { color: var(--accent); border-bottom-color: var(--accent); }
+.ptabs > button { margin-left: auto; }
+.gcards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(340px, 100%), 1fr)); gap: 14px; margin: 14px 0; align-items: start; }
+.gcard { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.gcard.new { border-style: dashed; }
+.gcard.archived { opacity: .8; }
+.gcard header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; }
+.gcard h2 { margin: 0; font: 700 20px/1.2 var(--display); }
+.gcard .actions { margin-top: 2px; }
+.gstats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.gstats div { display: flex; flex-direction: column; gap: 2px; }
+.gstats b { font: 700 20px/1.1 var(--display); font-variant-numeric: tabular-nums; }
+.gstats span { font-size: 12.5px; color: var(--muted); }
+.gnotes { margin: 0; padding-left: 18px; font-size: 14px; color: var(--muted); }
+.gnotes .warn { color: var(--warn); }
+.invite { border: 1px solid var(--line); border-radius: var(--r-sm); padding: 10px 12px; background: var(--panel2); display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
+.invite.on { border-color: var(--ok); background: var(--ok-soft); }
+.invite .actions { margin-top: 0; gap: 6px; }
+.invite .actions button { padding: 6px 12px; font-size: 14px; }
+.invite .actions button.link { padding: 6px 4px; }
+.invite .ilink { width: 100%; font: 500 13.5px var(--mono, monospace); }
+.invite p { margin: 0; }
+label.chk { display: flex; gap: 8px; align-items: center; font-size: 14px; color: var(--muted); }
+details.arch > summary { cursor: pointer; color: var(--muted); margin: 6px 0; }
+.pblock { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 14px 16px; margin: 12px 0; }
+.pblock > summary { cursor: pointer; }
+.pblock h2 { margin: 0 0 6px; font: 700 19px/1.3 var(--display); }
+.tblock { margin-top: 22px; }
+.gwrap { overflow-x: auto; max-width: 100%; }
+table.grade.sheet td:first-child, table.grade.sheet th:first-child { position: sticky; left: 0; background: var(--panel); z-index: 1; }
+table.grade.sheet th:first-child { z-index: 2; }
+table.grade .sort { background: none; border: none; padding: 0; font: inherit; color: inherit; cursor: pointer; }
+table.grade .sort.on { color: var(--accent); }
+table.grade td.st { white-space: normal; text-align: left; min-width: 150px; }
+@media (max-width: 480px) { .gstats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .step > summary { cursor: pointer; padding: 2px 0; }
 .step[open] > summary { margin-bottom: 10px; }
 /* экран входа: без меню курса, форма по центру */
@@ -696,7 +734,7 @@ const rec = id => (S.steps[id] = S.steps[id] || {});
 
 // понятный текст ошибки сервера
 function errText(e) {
-  const m = (e && (e.message || e.error_description || e.msg)) || String(e);
+  const m = ((e && (e.message || e.error_description || e.msg)) || String(e)).replace(/^МОБАК:\s*/, '');
   if (/Database error saving new user|не входит в список группы/i.test(m)) return 'эта почта не входит в список группы — обратитесь к преподавателю';
   if (e && (e.code === 'PT429' || e.status === 429) || /rate limit|too many/i.test(m)) return 'слишком часто — подождите минуту и попробуйте снова';
   if (/Failed to fetch|NetworkError|Load failed/i.test(m)) return 'нет связи с сервером';
@@ -1585,38 +1623,65 @@ function route() {
   l ? lesson(l, sn ? +sn : 0) : home();
 }
 
-/* ---------- вход по почте (magic link) ---------- */
-function loginScreen(msg) {
+/* ---------- запись по ссылке ---------- */
+// ?join=<код> — ссылка преподавателя. Код (и ФИО со страницы записи) хранится в браузере, пока запись не закончена:
+// ссылка из письма открывает сайт уже без ?join.
+const JKEY = KEY + '-join';
+function pendingJoin() {
+  const q = new URLSearchParams(location.search).get('join');
+  if (q) { saveJoin({ code: q.trim().toLowerCase() }); history.replaceState(null, '', location.pathname + location.hash); }
+  try { const j = JSON.parse(localStorage.getItem(JKEY) || 'null'); if (j && j.code && Date.now() - j.at < 2 * 864e5) return j; } catch (e) {}
+  return null;
+}
+function saveJoin(j) { try { localStorage.setItem(JKEY, JSON.stringify(Object.assign({}, j, { at: Date.now() }))); } catch (e) {} }
+function doneJoin() { try { localStorage.removeItem(JKEY); } catch (e) {} }
+
+/* ---------- вход по почте (код из письма) ---------- */
+// join — запись в группу по ссылке: { code, group, term }; тогда спрашиваем ещё ФИО, а код приглашения уходит в запрос письма
+function loginScreen(msg, join) {
   $('#side').innerHTML = ''; document.body.classList.add('bare');
   const m = $('#main'); m.innerHTML = '';
   // вход в два шага: почта → 6-значный код из письма (ссылка из того же письма тоже работает)
-  const box = el('div', { class: 'hero' }, '<div class="eyebrow">МОБАК · вход в курс</div><h1>Математические основы и базовые алгоритмы криптографии</h1><p class="lead"></p>');
+  const box = el('div', { class: 'hero' }, '<div class="eyebrow">МОБАК · ' + (join ? 'запись в группу ' + esc(join.group) : 'вход в курс') + '</div><h1>Математические основы и базовые алгоритмы криптографии</h1><p class="lead"></p>');
   const lead = $('.lead', box), form = el('div', { class: 'login-form' }), res = el('div', { class: 'result', hidden: '' });
   const say = (cls, html) => { res.className = 'result ' + cls; res.innerHTML = html; res.hidden = false; };
   const acts = (...b) => { const a = el('div', { class: 'actions' }); a.append(...b); return a; };
-  let email = '', timer = null;
+  let email = '', timer = null, fio = (join && join.name) || '';
   const send = async e => {
-    const { error } = await sb.auth.signInWithOtp({ email: e, options: { emailRedirectTo: location.origin + location.pathname, shouldCreateUser: true } });
-    if (error) say('bad', 'Не получилось отправить письмо: ' + esc(errText(error)) + '.');
+    const options = { emailRedirectTo: location.origin + location.pathname, shouldCreateUser: true };
+    if (join) options.data = { invite: join.code, full_name: fio };   // триггер на auth.users пропустит почту не из списка с действующим кодом
+    const { error } = await sb.auth.signInWithOtp({ email: e, options });
+    if (error) say('bad', 'Не получилось отправить письмо: ' + esc(join && /Database error saving new user/i.test(error.message || '') ? 'ссылка для записи больше не действует — попросите у преподавателя новую' : errText(error)) + '.');
     return !error;
   };
   const askEmail = () => {
     clearInterval(timer);
-    lead.textContent = 'Введите почту, которую вы дали преподавателю. На неё придёт письмо с кодом из 6 цифр. Пароль не нужен.';
+    if (join) lead.innerHTML = 'Вы записываетесь на курс в группу <b>' + esc(join.group) + '</b>' + (join.term ? ' (' + esc(join.term) + ')' : '') + '. Укажите фамилию и имя, как в журнале, и почту — на неё придёт код из 6 цифр. Пароль не нужен.';
+    else lead.textContent = 'Введите почту, которую вы дали преподавателю. На неё придёт письмо с кодом из 6 цифр. Пароль не нужен.';
     form.innerHTML = '';
+    const nm = join ? el('input', { type: 'text', class: 'answer', placeholder: 'Фамилия Имя', autocomplete: 'name', 'aria-label': 'Фамилия и имя', maxlength: '120' }) : null;
+    if (nm) nm.value = fio;
     const inp = el('input', { type: 'email', class: 'answer', placeholder: 'почта@пример.ru', autocomplete: 'email', 'aria-label': 'Почта' }); inp.value = email;
-    const btn = el('button', { class: 'primary' }, 'Получить код');
+    const btn = el('button', { class: 'primary' }, join ? 'Записаться' : 'Получить код');
     const go = async () => {
       const e = inp.value.trim().toLowerCase();
+      if (nm) {
+        fio = nm.value.trim().replace(/\s+/g, ' ');
+        if (fio.split(' ').length < 2 || fio.length < 5) { nm.focus(); return toast('Введите фамилию и имя'); }
+        saveJoin(Object.assign({}, join, { name: fio }));
+      }
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)) return toast('Введите почту');
       btn.disabled = true; btn.textContent = 'Отправляем…';
       const ok = await send(e);
-      btn.disabled = false; btn.textContent = 'Получить код';
+      btn.disabled = false; btn.textContent = join ? 'Записаться' : 'Получить код';
       if (ok) { email = e; askCode(); }
     };
     inp.addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
+    if (nm) nm.addEventListener('keydown', e => { if (e.key === 'Enter') inp.focus(); });
     btn.addEventListener('click', go);
-    form.append(inp, acts(btn)); inp.focus();
+    const extra = [];
+    if (join) extra.push(el('button', { class: 'link', on: { click: () => { doneJoin(); loginScreen(); } } }, 'Я уже в списке группы — просто войти'));
+    form.append(...(nm ? [nm] : []), inp, acts(btn, ...extra)); (nm && !fio ? nm : inp).focus();
   };
   const askCode = () => {
     lead.innerHTML = 'Код отправлен на <b>' + esc(email) + '</b>. Введите 6 цифр из письма — или просто откройте ссылку из него. Письма нет несколько минут — проверьте «Спам» и «Промоакции».';
@@ -1661,7 +1726,7 @@ function authErrorFromUrl() {
   return p.get('error_code') === 'otp_expired' ? 'Ссылка для входа устарела или уже использована. Запросите новую.' : 'Вход не удался: ' + (p.get('error_description') || p.get('error'));
 }
 
-/* ---------- страницы преподавателя ---------- */
+/* ---------- панель преподавателя ---------- */
 const WEIGHTS = (CONFIG && CONFIG.weights) || { week: 10, prac: 10, lab: 40, ctrl: 20, final: 15, test: 5 };
 // категория шага по названию урока — то же правило, что category() в stepik/teacher/weekly_report.py
 function category(lesson) {
@@ -1673,19 +1738,23 @@ function category(lesson) {
   return 'week';
 }
 const CAT_NAMES = { week: 'Задачи недели', prac: 'Практики', lab: 'ЛР', ctrl: 'КТ', final: 'Итоговая работа', test: 'Итоговый тест' };
+const DAY = 864e5;
 // роли: teacher — свои группы (teacher_groups), admin — руководитель курса, всё
 const isStaff = () => !!ME && (ME.role === 'teacher' || ME.role === 'admin');
 const isAdmin = () => !!ME && ME.role === 'admin';
-let TD = null;   // данные ведомости: roster, profiles, best (v_best), сроки, группы — только то, что разрешает RLS
+const pbtn = (text, fn, primary) => el('button', primary ? { class: 'primary', on: { click: fn } } : { on: { click: fn } }, text);
+const linkBtn = (text, fn) => el('button', { class: 'link', on: { click: fn } }, text);
+let TD = null;   // данные панели: roster, profiles, best (v_best), сроки, группы, ссылки — только то, что разрешает RLS
 async function teacherData(force) {
-  if (TD && !force) return TD;
-  const names = ['roster', 'profiles', 'v_best', 'deadlines', 'extensions', 'groups', 'teacher_groups', 'group_deadlines'];
+  if (TD && !force && Date.now() - TD.at < 60000) return TD;
+  const names = ['roster', 'profiles', 'v_best', 'deadlines', 'extensions', 'groups', 'teacher_groups', 'group_deadlines', 'group_invites'];
   const res = await Promise.all(names.map(t => sb.from(t).select('*').limit(100000)));
   for (const x of res) if (x.error) throw x.error;
-  const [roster, profiles, best, deadlines, ext, groups, tg, gd] = res.map(x => x.data);
-  TD = { roster, profiles, best, deadlines, ext, groups, tg, gd };
+  const [roster, profiles, best, deadlines, ext, groups, tg, gd, inv] = res.map(x => x.data);
+  TD = { roster, profiles, best, deadlines, ext, groups, tg, gd, inv, at: Date.now() };
   return TD;
 }
+const reloadPanel = async sub => { TD = null; await teacher(sub); };
 // вклад каждой категории в рейтинг: вес × доля баллов категории, набранных в срок (как rating() в weekly_report.py)
 function ratingParts(bestByStep) {
   const got = {}, max = {};
@@ -1710,6 +1779,9 @@ function studentRows(td) {
   }).sort((a, b) => a.r.full_name.localeCompare(b.r.full_name, 'ru'));
 }
 const fmtDate = t => t ? new Date(t).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
+const nameOf = (td, email) => (td.roster.find(r => r.email === email) || {}).full_name || email;
+// студент давно ничего не сдавал (или вошёл и ещё не начал)
+const idle = (x, now) => !!x.p && (!x.last || now - Date.parse(x.last) > 7 * DAY);
 
 // группы, которые ведёт вошедший: руководителю — все, преподавателю — назначенные; архивные в конце
 function myGroups(td) {
@@ -1729,60 +1801,270 @@ function groupOptions(groups, cur, extra) {
   return (extra || []).map(([v, t]) => o(v, t)).join('') + act.map(g => o(g.group_name, g.group_name + (g.term ? ' · ' + g.term : ''))).join('') +
     (arch.length ? '<optgroup label="Архив">' + arch.map(g => o(g.group_name, g.group_name + (g.term ? ' · ' + g.term : ''))).join('') + '</optgroup>' : '');
 }
+// ближайший срок группы: срок группы по модулю, иначе общий
+function nextDue(td, gname, now) {
+  return CAT.modules.map(M => {
+    const d = td.gd.find(x => x.group_name === gname && x.section_id === M.sectionId) || td.deadlines.find(x => x.section_id === M.sectionId) || {};
+    return { label: M.label, due: d.due_at };
+  }).filter(x => x.due && Date.parse(x.due) > now).sort((a, b) => Date.parse(a.due) - Date.parse(b.due))[0];
+}
+
+// вкладки панели; cur — '' (группы), 'sheet' (ведомость), 'deadlines' (сроки)
+function panelTabs(m, cur) {
+  const t = el('nav', { class: 'ptabs', 'aria-label': 'Панель преподавателя' });
+  [['', 'Группы'], ['sheet', 'Ведомость'], ['deadlines', 'Сроки']].forEach(([k, name]) => {
+    const a = el('a', { href: '#teacher' + (k ? '/' + k : '') }, name);
+    if (k === cur) { a.className = 'on'; a.setAttribute('aria-current', 'page'); }
+    t.appendChild(a);
+  });
+  const r = linkBtn('Обновить', () => reloadPanel(cur)); r.title = 'Загрузить свежие данные с сервера';
+  t.appendChild(r);
+  m.appendChild(t);
+}
 
 async function teacher(sub) {
   CUR = null; drawSide();
-  const m = $('#main'); m.innerHTML = '<div class="loading">Загрузка ведомости…</div>';
+  const m = $('#main'); m.innerHTML = '<div class="loading">Загрузка…</div>';
   const isUid = /^[0-9a-f-]{36}$/i.test(sub || '');
   let td;
-  try { td = await teacherData(!isUid); } catch (e) { m.innerHTML = '<div class="result bad">Не удалось загрузить ведомость: ' + esc(errText(e)) + '</div>'; return; }
+  try { td = await teacherData(); } catch (e) { m.innerHTML = '<div class="result bad">Не удалось загрузить данные: ' + esc(errText(e)) + '</div>'; return; }
   m.innerHTML = '';
+  if (isUid) return teacherStudent(m, studentRows(td).find(x => x.p && x.p.user_id === sub), td);
+  if (sub === 'sheet') return sheetPage(m, td);
   if (sub === 'deadlines') return deadlinesPage(m, td);
-  if (sub === 'groups') return isAdmin() ? groupsPage(m, td) : (location.hash = 'teacher');
-  const rows = studentRows(td);
-  if (isUid) return teacherStudent(m, rows.find(x => x.p && x.p.user_id === sub), td);
-  const mg = myGroups(td), g = curGroup(td);
-  const arch = new Set(td.groups.filter(x => x.archived).map(x => x.group_name));
-  const shown = rows.filter(x => g === '' ? !arch.has(x.r.group_name) : g === '-' ? !x.r.group_name : x.r.group_name === g);
-  m.appendChild(el('h1', { class: 'lesson-h' }, 'Ведомость'));
-  if (!isAdmin() && !mg.length) {
-    m.appendChild(el('div', { class: 'result' }, 'Вам пока не назначены группы. Попросите руководителя курса назначить вас преподавателем группы — тогда здесь появятся её студенты.'));
-    return;
-  }
-  const bar = el('div', { class: 'filters' }, '<label>Группа <select id="tgSel">' +
-    groupOptions(mg, g, [['', 'Все текущие группы']].concat(isAdmin() ? [['-', 'Без группы']] : [])) + '</select></label>');
-  $('#tgSel', bar).onchange = e => { setGroup(e.target.value); teacher(); };
-  m.appendChild(bar);
-  const joined = shown.filter(x => x.p).length;
-  m.appendChild(el('p', { class: 'small' }, 'Студентов: ' + shown.length + ', вошли на сайт: ' + joined +
-    '. Баллы — проверенные сервером и сданные в срок группы (с учётом продлений); рейтинг — из 100 по весам ' + Object.entries(WEIGHTS).map(([c, w]) => CAT_NAMES[c] + ' ' + w).join(', ') + '.'));
-  const acts = el('div', { class: 'actions' });
-  acts.append(el('button', { class: 'primary', on: { click: () => teacher() } }, 'Обновить'),
-    el('button', { on: { click: () => csv(shown, g) } }, 'Скачать CSV'),
-    el('button', { on: { click: () => addStudents(td, g) } }, 'Добавить студентов'),
-    el('button', { on: { click: () => extendForm(shown) } }, 'Продлить срок'),
-    el('button', { on: { click: () => { location.hash = 'teacher/deadlines'; } } }, 'Сроки'));
-  if (isAdmin()) acts.append(el('button', { on: { click: () => { location.hash = 'teacher/groups'; } } }, 'Группы и преподаватели'));
-  m.appendChild(acts);
-  const t = el('table', { class: 'grade' });
-  t.innerHTML = '<tr><th>Студент</th><th>Группа</th>' + CAT.modules.map(M => '<th title="' + esc(M.title) + '">' + (M.n === 15 ? 'И' : M.n) + '</th>').join('') +
-    '<th>Баллы</th><th>Рейтинг</th><th>Ждут проверки</th><th>Последняя сдача</th></tr>' +
-    shown.map(x => '<tr><td>' + (x.p ? '<a href="#teacher/' + x.p.user_id + '">' + esc(x.r.full_name) + '</a>' : esc(x.r.full_name) + ' <span class="small">(не входил)</span>') + '</td><td>' + esc(x.r.group_name || '') + '</td>' +
-      x.mods.map(v => '<td>' + (v ? fmt(v) : '') + '</td>').join('') + '<td><b>' + fmt(x.total) + '</b></td><td><b>' + fmt(x.rating) + '</b></td><td>' + (x.pend || '') + '</td><td>' + fmtDate(x.last) + '</td></tr>').join('');
-  if (!shown.length) t.innerHTML += '<tr><td colspan="' + (CAT.modules.length + 6) + '" class="small">В этой группе пока нет студентов — добавьте их кнопкой «Добавить студентов».</td></tr>';
-  m.appendChild(el('div', { style: 'overflow-x:auto' })).appendChild(t);
-  m.appendChild(el('p', { class: 'small' }, 'Максимум по модулям: ' + CAT.modules.map(M => (M.n === 15 ? 'И' : M.n) + ' — ' + modStat(M).m).join(', ') + '.'));
+  return panelHome(m, td);
 }
 
+/* группы: карточка на группу — студенты, рейтинг, сроки, ссылка для записи */
+function panelHome(m, td) {
+  panelTabs(m, '');
+  const mg = myGroups(td), rows = studentRows(td), now = Date.now();
+  m.appendChild(el('h1', { class: 'lesson-h' }, 'Мои группы'));
+  m.appendChild(el('p', { class: 'small' }, esc(ME.full_name || ME.email) + ' · ' + (isAdmin() ? 'руководитель курса: видны все группы и преподаватели' : 'преподаватель: видны только ваши группы')));
+  const act = mg.filter(g => !g.archived), arch = mg.filter(g => g.archived);
+  if (!act.length) m.appendChild(el('div', { class: 'result' }, isAdmin() ? 'Групп пока нет — создайте первую ниже.' : 'У вас пока нет групп. Создайте свою группу ниже или попросите руководителя курса назначить вас на существующую.'));
+  const grid = el('div', { class: 'gcards' });
+  act.forEach(g => grid.appendChild(groupCard(g, td, rows, now)));
+  grid.appendChild(newGroupCard());
+  m.appendChild(grid);
+  const none = rows.filter(x => !x.r.group_name);
+  if (isAdmin() && none.length) {
+    const p = el('p', { class: 'small' }, 'Студентов без группы: ' + none.length + '. ');
+    p.appendChild(el('a', { href: '#teacher/sheet', on: { click: () => setGroup('-') } }, 'Показать в ведомости'));
+    m.appendChild(p);
+  }
+  if (arch.length) {
+    const d = el('details', { class: 'arch' }, '<summary>Архив — ' + arch.length + ' ' + plural(arch.length, 'группа', 'группы', 'групп') + '</summary>');
+    const g2 = el('div', { class: 'gcards' }); arch.forEach(g => g2.appendChild(groupCard(g, td, rows, now)));
+    d.appendChild(g2); m.appendChild(d);
+  }
+  if (isAdmin()) m.appendChild(teachersBlock(td, mg));
+}
+
+function groupCard(g, td, rows, now) {
+  const st = rows.filter(x => x.r.group_name === g.group_name), joined = st.filter(x => x.p).length;
+  const viaLink = st.filter(x => x.r.source === 'invite').length, fresh = st.filter(x => x.r.source === 'invite' && now - Date.parse(x.r.added_at) < 7 * DAY).length;
+  const pend = st.reduce((a, x) => a + x.pend, 0), lazy = st.filter(x => idle(x, now)).length;
+  const avg = st.length ? st.reduce((a, x) => a + x.rating, 0) / st.length : 0;
+  const nd = nextDue(td, g.group_name, now);
+  const teachers = td.tg.filter(t => t.group_name === g.group_name).map(t => nameOf(td, t.email));
+  const c = el('section', { class: 'gcard' + (g.archived ? ' archived' : '') });
+  c.innerHTML = '<header><h2>' + esc(g.group_name) + '</h2>' + (g.term ? '<span class="small">' + esc(g.term) + '</span>' : '') + (g.archived ? '<span class="badge">архив</span>' : '') + '</header>' +
+    '<div class="gstats"><div><b>' + st.length + '</b><span>' + plural(st.length, 'студент', 'студента', 'студентов') + '</span></div><div><b>' + joined + '</b><span>вошли на сайт</span></div>' +
+    '<div><b>' + fmt(avg) + '</b><span>средний рейтинг</span></div><div><b>' + pend + '</b><span>ждут проверки</span></div></div>' +
+    '<ul class="gnotes">' + [nd ? 'Ближайший срок: ' + esc(nd.label) + ' — ' + fmtDate(nd.due) : 'Ближайших сроков нет',
+      lazy ? '<span class="warn">без сдач больше недели: ' + lazy + '</span>' : '',
+      viaLink ? 'записались по ссылке: ' + viaLink + (fresh ? ' (за неделю — ' + fresh + ')' : '') : '',
+      'Преподаватели: ' + (teachers.length ? teachers.map(esc).join(', ') : '<b>не назначены</b>')].filter(Boolean).map(x => '<li>' + x + '</li>').join('') + '</ul>';
+  if (!g.archived) c.appendChild(inviteBlock(g, td));
+  const a = el('div', { class: 'actions' });
+  a.append(pbtn('Ведомость', () => { setGroup(g.group_name); location.hash = 'teacher/sheet'; }, true),
+    pbtn('Сроки', () => { DLG = g.group_name; location.hash = 'teacher/deadlines'; }),
+    pbtn('Добавить списком', () => addStudents(td, g.group_name)));
+  if (isAdmin()) a.append(pbtn(g.archived ? 'Вернуть из архива' : 'В архив', async () => {
+    if (!g.archived && !confirm('Отправить группу ' + g.group_name + ' в архив? Данные останутся, ссылка для записи перестанет работать.')) return;
+    const { error } = await sb.from('groups').update({ archived: !g.archived }).eq('group_name', g.group_name);
+    if (error) return toast(errText(error));
+    reloadPanel('');
+  }));
+  c.appendChild(a);
+  return c;
+}
+
+/* ссылка для записи в группу: ?join=<код>; код генерирует сервер (group_invites.code) */
+const joinUrl = code => location.origin + location.pathname + '?join=' + code;
+const inviteText = (g, url) => 'Курс «МОБАК», группа ' + g + '.\nЗапишитесь по ссылке: ' + url + '\nНужна только почта: на неё придёт код для входа, пароль не нужен.';
+function inviteBlock(g, td) {
+  const inv = td.inv.find(x => x.group_name === g.group_name);
+  const live = inv && (!inv.expires_at || Date.parse(inv.expires_at) > Date.now());
+  const b = el('div', { class: 'invite' + (live ? ' on' : '') });
+  if (live) {
+    const url = joinUrl(inv.code);
+    b.innerHTML = '<div class="ih"><b>Запись по ссылке открыта</b> ' + (inv.expires_at ? 'до ' + fmtDate(inv.expires_at) : 'без срока') + '</div>' +
+      '<input type="text" readonly class="ilink" aria-label="Ссылка для записи в группу ' + esc(g.group_name) + '"><div class="actions"></div>' +
+      '<p class="small">Разошлите ссылку в чат группы. Студент вводит ФИО и почту, подтверждает её кодом из письма — и сразу попадает в группу.</p>';
+    const inp = $('.ilink', b); inp.value = url; inp.onclick = () => inp.select();
+    $('.actions', b).append(pbtn('Копировать ссылку', () => copy(url), true), pbtn('Копировать приглашение', () => copy(inviteText(g.group_name, url))),
+      linkBtn('Новая ссылка', async () => { if (confirm('Сделать новую ссылку? Старая перестанет работать; уже записавшиеся останутся в группе.')) await makeInvite(g.group_name, inv.expires_at); }),
+      linkBtn('Закрыть запись', async () => {
+        if (!confirm('Закрыть запись по ссылке для группы ' + g.group_name + '? Уже записавшиеся останутся в группе.')) return;
+        const { error } = await sb.from('group_invites').delete().eq('group_name', g.group_name);
+        if (error) return toast(errText(error));
+        reloadPanel('');
+      }));
+  } else {
+    b.innerHTML = '<div class="ih">' + (inv ? 'Ссылка истекла ' + fmtDate(inv.expires_at) + '.' : 'Запись по ссылке закрыта.') + ' Откройте её — студенты запишутся сами.</div>' +
+      '<div class="actions"><label class="small">Ссылка действует <select class="idays"><option value="7">7 дней</option><option value="30" selected>30 дней</option><option value="">без срока</option></select></label></div>';
+    $('.actions', b).appendChild(pbtn('Открыть запись по ссылке', () => { const d = $('.idays', b).value; makeInvite(g.group_name, d ? new Date(Date.now() + d * DAY).toISOString() : null); }, true));
+  }
+  return b;
+}
+// новая ссылка: прежняя строка удаляется, новый код ставит сервер (значение по умолчанию group_invites.code)
+async function makeInvite(gname, expiresAt) {
+  const del = await sb.from('group_invites').delete().eq('group_name', gname);
+  if (del.error) return toast(errText(del.error));
+  const { error } = await sb.from('group_invites').insert({ group_name: gname, expires_at: expiresAt && Date.parse(expiresAt) > Date.now() ? expiresAt : null });
+  if (error) return toast(errText(error));
+  await reloadPanel('');
+  toast('Ссылка для записи готова — скопируйте и разошлите');
+}
+
+function newGroupCard() {
+  const c = el('section', { class: 'gcard new' }, '<header><h2>Новая группа</h2></header>' +
+    '<div class="filters"><label>Код группы <input type="text" class="ngN" placeholder="ИБ-1-24" maxlength="40"></label><label>Семестр <input type="text" class="ngT" placeholder="2026-осень"></label></div>' +
+    '<label class="chk"><input type="checkbox" class="ngI" checked> сразу открыть запись по ссылке на 30 дней</label>' +
+    (isAdmin() ? '<label class="chk"><input type="checkbox" class="ngMe" checked> я сам веду эту группу</label>' : '') + '<div class="actions"></div>');
+  $('.actions', c).appendChild(pbtn('Создать группу', async () => {
+    const n = $('.ngN', c).value.trim(), term = $('.ngT', c).value.trim(), me = !isAdmin() || $('.ngMe', c).checked;
+    if (!n) return toast('Укажите код группы');
+    const { error } = await sb.rpc('create_group', { group_name: n, term: term || null, assign_me: me });
+    if (error) return toast(error.code === '23505' ? 'Группа ' + n + ' уже есть' : errText(error));
+    if ($('.ngI', c).checked) {
+      const r = await sb.from('group_invites').insert({ group_name: n, expires_at: new Date(Date.now() + 30 * DAY).toISOString() });
+      if (r.error) toast('Группа создана, но ссылка не открылась: ' + errText(r.error));
+    }
+    await reloadPanel('');
+    toast('Группа ' + n + ' создана');
+  }, true));
+  return c;
+}
+
+/* преподаватели (руководитель): кто какие группы ведёт, назначить и снять */
+function teachersBlock(td, groups) {
+  const box = el('section', { class: 'pblock tblock' }, '<h2>Преподаватели</h2><p class="small">Преподаватель видит только назначенные ему группы: их студентов, сдачи, сроки и продления. Если почты ещё нет в списке, она добавится с ролью «преподаватель».</p>');
+  const staff = td.roster.filter(r => r.role !== 'student').sort((a, b) => a.full_name.localeCompare(b.full_name, 'ru'));
+  const t = el('table', { class: 'grade' });
+  t.innerHTML = '<tr><th>Преподаватель</th><th>Почта</th><th>Группы</th></tr>' + staff.map(r => '<tr><td>' + esc(r.full_name) + (r.role === 'admin' ? ' <span class="badge">руководитель</span>' : '') + '</td><td>' + esc(r.email) + '</td><td>' +
+    (td.tg.filter(x => x.email === r.email).map(x => '<span class="badge">' + esc(x.group_name) + ' <button class="link" title="Снять с группы" data-un="' + esc(x.email) + '" data-g="' + esc(x.group_name) + '">×</button></span>').join(' ') || '<span class="small">—</span>') + '</td></tr>').join('');
+  t.querySelectorAll('[data-un]').forEach(b => b.onclick = async () => {
+    const { error } = await sb.from('teacher_groups').delete().eq('email', b.dataset.un).eq('group_name', b.dataset.g);
+    if (error) return toast(errText(error));
+    reloadPanel('');
+  });
+  box.appendChild(el('div', { style: 'overflow-x:auto' })).appendChild(t);
+  const f = el('div', { class: 'filters' }, '<label>Группа <select class="tcG">' + groupOptions(groups.filter(g => !g.archived), '', []) + '</select></label>' +
+    '<label>Почта <input type="email" class="tcE" list="tcList" placeholder="teacher@kstu.kg"></label><label>ФИО <input type="text" class="tcN" placeholder="для новой почты"></label>' +
+    '<datalist id="tcList">' + staff.map(r => '<option value="' + esc(r.email) + '">' + esc(r.full_name) + '</option>').join('') + '</datalist>');
+  f.appendChild(pbtn('Назначить', async () => {
+    const g = $('.tcG', f).value, email = $('.tcE', f).value.trim().toLowerCase(), fio = $('.tcN', f).value.trim();
+    if (!g) return toast('Сначала создайте группу');
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return toast('Введите почту');
+    const ex = td.roster.find(r => r.email === email);
+    if (ex && ex.role === 'student') return toast('Эта почта в списке как студент группы ' + (ex.group_name || '—'));
+    if (!ex) {
+      if (!fio) return toast('Укажите ФИО нового преподавателя');
+      const { error } = await sb.from('roster').insert({ email, full_name: fio, group_name: null, role: 'teacher' });
+      if (error) return toast(errText(error));
+    }
+    const { error } = await sb.from('teacher_groups').upsert({ email, group_name: g }, { onConflict: 'email,group_name', ignoreDuplicates: true });
+    if (error) return toast(errText(error));
+    reloadPanel('');
+  }, true));
+  box.appendChild(f);
+  return box;
+}
+
+/* ведомость: фильтр по группе, поиск, сортировка по столбцам, состояние студента */
+const SHEET = { q: '', sort: 'name', dir: 1 };
+function sheetPage(m, td) {
+  panelTabs(m, 'sheet');
+  const mg = myGroups(td), g = curGroup(td), now = Date.now();
+  const arch = new Set(td.groups.filter(x => x.archived).map(x => x.group_name));
+  const shown = studentRows(td).filter(x => g === '' ? !arch.has(x.r.group_name) : g === '-' ? !x.r.group_name : x.r.group_name === g);
+  m.appendChild(el('h1', { class: 'lesson-h' }, 'Ведомость'));
+  if (!isAdmin() && !mg.length) { m.appendChild(el('div', { class: 'result' }, 'У вас пока нет групп — создайте её во вкладке «Группы».')); return; }
+  const bar = el('div', { class: 'filters' }, '<label>Группа <select class="shG">' + groupOptions(mg, g, [['', 'Все текущие группы']].concat(isAdmin() ? [['-', 'Без группы']] : [])) + '</select></label>' +
+    '<label>Поиск <input type="search" class="shQ" placeholder="фамилия или почта"></label>');
+  $('.shG', bar).onchange = e => { setGroup(e.target.value); teacher('sheet'); };
+  const q = $('.shQ', bar); q.value = SHEET.q;
+  m.appendChild(bar);
+  const info = el('p', { class: 'small' });
+  m.appendChild(info);
+  const acts = el('div', { class: 'actions' });
+  acts.append(pbtn('Скачать CSV', () => csv(filtered(), g)), pbtn('Добавить студентов', () => addStudents(td, g)), pbtn('Продлить срок', () => extendForm(shown)));
+  m.appendChild(acts);
+  const wrap = el('div', { class: 'gwrap' });
+  m.appendChild(wrap);
+  m.appendChild(el('p', { class: 'small' }, 'Баллы — проверенные сервером и сданные в срок группы (с учётом продлений). Рейтинг — из 100 по весам ' + Object.entries(WEIGHTS).map(([c, w]) => CAT_NAMES[c] + ' ' + w).join(', ') +
+    '. Максимум по модулям: ' + CAT.modules.map(M => (M.n === 15 ? 'И' : M.n) + ' — ' + modStat(M).m).join(', ') + '.'));
+  const key = { name: x => x.r.full_name, group: x => x.r.group_name || '', total: x => x.total, rating: x => x.rating, pend: x => x.pend, last: x => x.last || '' };
+  const filtered = () => {
+    const s = SHEET.q.trim().toLowerCase();
+    return shown.filter(x => !s || x.r.full_name.toLowerCase().includes(s) || x.r.email.includes(s))
+      .sort((a, b) => { const va = key[SHEET.sort](a), vb = key[SHEET.sort](b); return SHEET.dir * (typeof va === 'number' ? va - vb : String(va).localeCompare(String(vb), 'ru')); });
+  };
+  const th = (k, t, title) => '<th' + (title ? ' title="' + esc(title) + '"' : '') + '><button class="sort' + (SHEET.sort === k ? ' on' : '') + '" data-k="' + k + '">' + t + (SHEET.sort === k ? (SHEET.dir > 0 ? ' ▲' : ' ▼') : '') + '</button></th>';
+  const status = x => !x.p ? '<span class="badge">не входил</span>'
+    : (x.r.source === 'invite' && now - Date.parse(x.r.added_at) < 7 * DAY ? '<span class="badge full">новый, по ссылке</span> ' : '') + (idle(x, now) ? '<span class="badge late">нет сдач больше недели</span>' : '');
+  const draw = () => {
+    const rows = filtered();
+    info.textContent = 'Студентов: ' + shown.length + (rows.length !== shown.length ? ', найдено: ' + rows.length : '') + ', вошли на сайт: ' + shown.filter(x => x.p).length + '.';
+    const t = el('table', { class: 'grade sheet' });
+    t.innerHTML = '<tr>' + th('name', 'Студент') + th('group', 'Группа') + CAT.modules.map(M => '<th title="' + esc(M.title) + '">' + (M.n === 15 ? 'И' : M.n) + '</th>').join('') +
+      th('total', 'Баллы') + th('rating', 'Рейтинг') + th('pend', 'Ждут', 'Сдачи, которые сервер ещё не перепроверил') + th('last', 'Последняя сдача') + '<th>Состояние</th></tr>' +
+      rows.map(x => '<tr><td>' + (x.p ? '<a href="#teacher/' + x.p.user_id + '">' + esc(x.r.full_name) + '</a>' : esc(x.r.full_name)) + '</td><td>' + esc(x.r.group_name || '') + '</td>' +
+        x.mods.map(v => '<td>' + (v ? fmt(v) : '') + '</td>').join('') + '<td><b>' + fmt(x.total) + '</b></td><td><b>' + fmt(x.rating) + '</b></td><td>' + (x.pend || '') + '</td><td>' + fmtDate(x.last) + '</td><td class="st">' + status(x) + '</td></tr>').join('');
+    if (!rows.length) t.innerHTML += '<tr><td colspan="' + (CAT.modules.length + 7) + '" class="small">' + (shown.length ? 'Никого не нашлось.' : 'В группе пока нет студентов — откройте запись по ссылке во вкладке «Группы» или добавьте списком.') + '</td></tr>';
+    t.querySelectorAll('button.sort').forEach(b => b.onclick = () => { const k = b.dataset.k; SHEET.dir = SHEET.sort === k ? -SHEET.dir : (k === 'name' || k === 'group' ? 1 : -1); SHEET.sort = k; draw(); });
+    wrap.innerHTML = ''; wrap.appendChild(t);
+  };
+  q.addEventListener('input', () => { SHEET.q = q.value; draw(); });
+  draw();
+}
+
+/* карточка студента: баллы по модулям, ответы, продление, перевод, исключение */
 function teacherStudent(m, x, td) {
   if (!x) { m.innerHTML = '<div class="result bad">Студент не найден.</div>'; return; }
-  m.appendChild(el('div', { class: 'crumbs' }, '<a href="#teacher">← Ведомость</a>'));
+  m.appendChild(el('div', { class: 'crumbs' }, '<a href="#teacher/sheet">← Ведомость</a>'));
   m.appendChild(el('h1', { class: 'lesson-h' }, esc(x.r.full_name)));
-  m.appendChild(el('p', { class: 'small' }, esc(x.r.email) + (x.r.group_name ? ' · группа ' + esc(x.r.group_name) : '') + ' · баллы в срок ' + fmt(x.total) + ' из ' + CAT.total + ' · рейтинг ' + fmt(x.rating) + ' из 100'));
+  m.appendChild(el('p', { class: 'small' }, esc(x.r.email) + (x.r.group_name ? ' · группа ' + esc(x.r.group_name) : '') + ' · ' + (x.r.source === 'invite' ? 'записался по ссылке ' : 'в списке с ') + fmtDate(x.r.added_at) +
+    ' · баллы в срок ' + fmt(x.total) + ' из ' + CAT.total + ' · рейтинг ' + fmt(x.rating) + ' из 100'));
+  const ex = td.ext.filter(e => e.user_id === x.p.user_id);
+  if (ex.length) m.appendChild(el('p', { class: 'small' }, 'Продления: ' + ex.map(e => esc((CAT.modules.find(M => M.sectionId === e.section_id) || { label: e.section_id }).label) + ' — до ' + fmtDate(e.due_at)).join(', ')));
+  const acts = el('div', { class: 'actions' });
+  const others = myGroups(td).filter(g => !g.archived && g.group_name !== x.r.group_name);
+  acts.append(pbtn('Продлить срок', () => extendForm([x], x.p.user_id)));
+  if (others.length) {
+    const sel = el('select', { 'aria-label': 'Перевести в группу' }, '<option value="">Перевести в группу…</option>' + groupOptions(others, '', []));
+    sel.onchange = async () => {
+      if (!sel.value || !confirm('Перевести ' + x.r.full_name + ' в группу ' + sel.value + '? Сроки и «в срок» пересчитаются по новой группе.')) { sel.value = ''; return; }
+      const { error } = await sb.from('roster').update({ group_name: sel.value }).eq('email', x.r.email);
+      if (error) { sel.value = ''; return toast(errText(error)); }
+      TD = null; toast('Переведён в группу ' + sel.value); teacher(x.p.user_id);
+    };
+    acts.append(sel);
+  }
+  acts.append(pbtn('Исключить из курса', async () => {
+    if (!confirm('Исключить ' + x.r.full_name + ' из курса? Сдачи и баллы сохранятся, но сдавать новые задачи и входить в группу студент не сможет. Вернуть — добавить почту заново.')) return;
+    const { error } = await sb.from('roster').delete().eq('email', x.r.email);
+    if (error) return toast(errText(error));
+    TD = null; toast('Студент исключён'); location.hash = 'teacher/sheet';
+  }));
+  m.appendChild(acts);
   CAT.modules.forEach(M => {
     const tasks = M.lessons.flatMap(l => l.steps.filter(s => isTask(s)).map(s => [l, s]));
     const done = tasks.filter(([, s]) => x.best[s.id]);
-    const det = el('details', { class: 'step' }, '<summary><b>' + esc(M.label) + '</b> — ' + fmt(x.mods[M.n - 1]) + ' из ' + modStat(M).m + ' · сдано шагов ' + done.length + ' из ' + tasks.length + '</summary>');
+    const det = el('details', { class: 'pblock' }, '<summary><b>' + esc(M.label) + '</b> — ' + fmt(x.mods[M.n - 1]) + ' из ' + modStat(M).m + ' · сдано шагов ' + done.length + ' из ' + tasks.length + '</summary>');
     const t = el('table');
     t.innerHTML = '<tr><th>Урок · шаг</th><th>Баллы</th><th>В срок</th><th>После срока</th><th>Попыток</th><th>Последняя</th><th></th></tr>' +
       tasks.map(([l, s]) => { const b = x.best[s.id]; return '<tr><td>' + esc(l.title) + ' · ' + s.num + ' ' + esc(s.title) + '</td><td>' + s.cost + '</td><td>' + (b && b.best_on_time !== null ? fmt(b.best_on_time * s.cost) : '') + '</td><td>' + (b && b.best_late !== null ? fmt(b.best_late * s.cost) : '') + '</td><td>' + (b ? b.attempts + (b.attempts > b.verified ? ' (ждут ' + (b.attempts - b.verified) + ')' : '') : '') + '</td><td>' + (b ? fmtDate(b.last_at) : '') + '</td><td>' + (b ? '<button class="link" data-s="' + s.id + '">ответ</button>' : '') + '</td></tr>'; }).join('');
@@ -1819,14 +2101,15 @@ function csv(rows, g) {
 
 function addStudents(td, g) {
   const mg = myGroups(td).filter(x => !x.archived), def = g && g !== '-' ? g : (mg[0] ? mg[0].group_name : '');
+  let changed = false;
   const md = el('div', { class: 'modal' });
-  md.innerHTML = '<div class="box wide"><h2>Добавить студентов</h2><p class="small">По одному в строке: <code>Фамилия Имя; почта; группа</code>. Группу можно не указывать — студент попадёт в группу по умолчанию. ' +
-    (isAdmin() ? 'Новая группа создастся сама.' : 'Можно указывать только свои группы.') + ' Уже добавленные почты обновятся.</p>' +
+  md.innerHTML = '<div class="box wide"><h2>Добавить студентов списком</h2><p class="small">По одному в строке: <code>Фамилия Имя; почта; группа</code>. Группу можно не указывать — студент попадёт в группу по умолчанию. ' +
+    (isAdmin() ? 'Новая группа создастся сама.' : 'Можно указывать только свои группы.') + ' Уже добавленные почты обновятся. Проще — открыть запись по ссылке на карточке группы.</p>' +
     '<p><label>Группа по умолчанию <select id="stG">' + groupOptions(mg, def, isAdmin() ? [['', 'без группы']] : []) + '</select></label></p>' +
     '<textarea id="stIn" placeholder="Иванов Иван; ivanov@example.com; ИБ-1-24"></textarea><div class="result" hidden id="stRes"></div>' +
     '<div class="actions"><button class="primary" id="stOk">Добавить</button><button id="stX">Закрыть</button></div></div>';
   document.body.appendChild(md);
-  $('#stX', md).onclick = () => md.remove();
+  $('#stX', md).onclick = () => { md.remove(); if (changed) reloadPanel((location.hash.split('/')[1]) || ''); };
   $('#stOk', md).onclick = async () => {
     const rows = [], bad = [], dg = $('#stG', md).value, mine = new Set(mg.map(x => x.group_name));
     $('#stIn', md).value.split('\n').map(l => l.trim()).filter(Boolean).forEach(l => {
@@ -1848,13 +2131,13 @@ function addStudents(td, g) {
     const { error } = await sb.from('roster').upsert(rows, { onConflict: 'email' });
     if (error) { res.className = 'result bad'; res.textContent = errText(error); return; }
     res.className = 'result ok'; res.textContent = 'Добавлено: ' + rows.length + (fresh.length ? ', новые группы: ' + fresh.join(', ') : '') + '. Теперь они могут войти по своей почте.';
-    TD = null;
+    TD = null; changed = true;
   };
 }
 
-function extendForm(rows) {
+function extendForm(rows, uid) {
   const md = el('div', { class: 'modal' });
-  const st = rows.filter(x => x.p).map(x => '<option value="' + x.p.user_id + '">' + esc(x.r.full_name) + (x.r.group_name ? ' · ' + esc(x.r.group_name) : '') + '</option>').join('');
+  const st = rows.filter(x => x.p).map(x => '<option value="' + x.p.user_id + '"' + (x.p.user_id === uid ? ' selected' : '') + '>' + esc(x.r.full_name) + (x.r.group_name ? ' · ' + esc(x.r.group_name) : '') + '</option>').join('');
   const mods = CAT.modules.map(M => '<option value="' + M.sectionId + '">' + esc(M.label) + '</option>').join('');
   md.innerHTML = '<div class="box"><h2>Продлить срок</h2><p class="small">Сдачи до новой даты засчитываются как сданные в срок; для КТ продление снимает ограничение окна пары.</p>' +
     '<p>Студент <select id="exU">' + st + '</select></p><p>Модуль <select id="exM">' + mods + '</select></p><p>Новый срок <input type="datetime-local" id="exD"></p>' +
@@ -1878,15 +2161,15 @@ const DL_COLS = [['class_start', 'Пара: начало'], ['class_end', 'Па�
 let DLG = null;   // группа, открытая на странице сроков; '*' — общие сроки курса
 function deadlinesPage(m, td) {
   const mg = myGroups(td).filter(x => !x.archived);
-  m.appendChild(el('div', { class: 'crumbs' }, '<a href="#teacher">← Ведомость</a>'));
+  panelTabs(m, 'deadlines');
   m.appendChild(el('h1', { class: 'lesson-h' }, 'Сроки'));
-  if (!isAdmin() && !mg.length) { m.appendChild(el('div', { class: 'result' }, 'Вам пока не назначены группы.')); return; }
+  if (!isAdmin() && !mg.length) { m.appendChild(el('div', { class: 'result' }, 'У вас пока нет групп — создайте её во вкладке «Группы».')); return; }
   const cg = curGroup(td);
   if (DLG === null || (DLG === '*' && !isAdmin()) || (DLG !== '*' && !mg.some(x => x.group_name === DLG))) DLG = cg && cg !== '-' && mg.some(x => x.group_name === cg) ? cg : mg[0] ? mg[0].group_name : '*';
   const g = DLG, course = g === '*';
   const off = -new Date().getTimezoneOffset() / 60;
   m.appendChild(el('p', { class: 'small' }, 'Общие сроки курса задаёт руководитель. Если группа идёт по своему расписанию, задайте ей свои сроки: они заменяют общие для студентов группы, а модули с общими сроками следуют за общими. ' +
-    'Окно пары важно для КТ: сдача КТ вне окна не засчитывается в срок (кроме продлённых). Продления отдельным студентам — кнопкой «Продлить срок» в ведомости. Время — по часам этого компьютера (UTC' + (off >= 0 ? '+' : '') + off + ').'));
+    'Окно пары важно для КТ: сдача КТ вне окна не засчитывается в срок (кроме продлённых). Продления отдельным студентам — в ведомости. Время — по часам этого компьютера (UTC' + (off >= 0 ? '+' : '') + off + ').'));
   const bar = el('div', { class: 'filters' }, '<label>Сроки <select id="dlSel">' + groupOptions(mg, g, isAdmin() ? [['*', 'Общие сроки курса']] : []) + '</select></label>');
   $('#dlSel', bar).onchange = e => { DLG = e.target.value; m.innerHTML = ''; deadlinesPage(m, td); };
   m.appendChild(bar);
@@ -1902,7 +2185,7 @@ function deadlinesPage(m, td) {
   m.appendChild(el('div', { style: 'overflow-x:auto' })).appendChild(t);
   // заполнение по расписанию — то же правило, что seed_deadlines.sql: неделя w — пара в день первой пары + 7(w−1),
   // срок — через неделю в начало пары; итоговая работа — день пары 14-й недели, 23:59
-  const fill = el('details', { class: 'step' }, '<summary><b>Заполнить по расписанию</b></summary><p class="small">Пары раз в неделю. Срок сдачи недели — начало следующей пары; итоговая работа — до 23:59 в день пары 14-й недели.</p>' +
+  const fill = el('details', { class: 'pblock' }, '<summary><b>Заполнить по расписанию</b></summary><p class="small">Пары раз в неделю. Срок сдачи недели — начало следующей пары; итоговая работа — до 23:59 в день пары 14-й недели.</p>' +
     '<div class="filters"><label>Первая пара <input type="date" id="fD"></label><label>с <input type="time" id="fA" value="08:00"></label><label>до <input type="time" id="fB" value="20:00"></label><button id="fGo">Заполнить</button></div>');
   m.appendChild(fill);
   $('#fGo', fill).onclick = () => {
@@ -1938,72 +2221,16 @@ function deadlinesPage(m, td) {
       if (!error && same.length) ({ error } = await sb.from('group_deadlines').delete().eq('group_name', g).in('section_id', same));
     }
     if (error) { res.className = 'result bad'; res.textContent = 'Не сохранено: ' + errText(error); return; }
-    TD = null; await teacher('deadlines'); toast('Сроки сохранены');
+    await reloadPanel('deadlines'); toast('Сроки сохранены');
   };
-  acts.append(el('button', { class: 'primary', on: { click: save } }, 'Сохранить'));
-  if (!course && td.gd.some(d => d.group_name === g)) acts.append(el('button', { on: { click: async () => {
+  acts.append(pbtn('Сохранить', save, true));
+  if (!course && td.gd.some(d => d.group_name === g)) acts.append(pbtn('Вернуть общие сроки', async () => {
     if (!confirm('Вернуть группе ' + g + ' общие сроки курса по всем модулям?')) return;
     const { error } = await sb.from('group_deadlines').delete().eq('group_name', g);
     if (error) { res.hidden = false; res.className = 'result bad'; res.textContent = errText(error); return; }
-    TD = null; await teacher('deadlines'); toast('У группы снова общие сроки');
-  } } }, 'Вернуть общие сроки'));
+    await reloadPanel('deadlines'); toast('У группы снова общие сроки');
+  }));
   m.append(acts, res);
-}
-
-/* группы и преподаватели (руководитель курса) */
-function groupsPage(m, td) {
-  const reload = async () => { TD = null; await teacher('groups'); };
-  const name = e => (td.roster.find(r => r.email === e) || {}).full_name || e;
-  m.appendChild(el('div', { class: 'crumbs' }, '<a href="#teacher">← Ведомость</a>'));
-  m.appendChild(el('h1', { class: 'lesson-h' }, 'Группы и преподаватели'));
-  m.appendChild(el('p', { class: 'small' }, 'Преподаватель видит в ведомости только назначенные ему группы: их студентов, сдачи, сроки и продления. Руководитель курса видит всё. Архивная группа не показывается в ведомости по умолчанию, данные остаются.'));
-  const t = el('table', { class: 'grade' });
-  const groups = myGroups(td);
-  t.innerHTML = '<tr><th>Группа</th><th>Семестр</th><th>Студентов</th><th>Преподаватели</th><th>Архив</th></tr>' +
-    groups.map(g => '<tr><td>' + esc(g.group_name) + '</td><td>' + esc(g.term || '') + '</td><td>' + td.roster.filter(r => r.role === 'student' && r.group_name === g.group_name).length + '</td><td>' +
-      (td.tg.filter(x => x.group_name === g.group_name).map(x => '<span class="badge">' + esc(name(x.email)) + ' <button class="link" title="Снять с группы" data-un="' + esc(x.email) + '" data-g="' + esc(g.group_name) + '">×</button></span>').join(' ') || '<span class="small">нет</span>') +
-      '</td><td><input type="checkbox" data-arch="' + esc(g.group_name) + '"' + (g.archived ? ' checked' : '') + ' aria-label="Архив"></td></tr>').join('');
-  if (!groups.length) t.innerHTML += '<tr><td colspan="5" class="small">Групп пока нет.</td></tr>';
-  t.querySelectorAll('[data-un]').forEach(b => b.onclick = async () => {
-    const { error } = await sb.from('teacher_groups').delete().eq('email', b.dataset.un).eq('group_name', b.dataset.g);
-    if (error) return toast(errText(error));
-    reload();
-  });
-  t.querySelectorAll('[data-arch]').forEach(c => c.onchange = async () => {
-    const { error } = await sb.from('groups').update({ archived: c.checked }).eq('group_name', c.dataset.arch);
-    if (error) { c.checked = !c.checked; return toast(errText(error)); }
-    reload();
-  });
-  m.appendChild(el('div', { style: 'overflow-x:auto' })).appendChild(t);
-
-  const ng = el('div', { class: 'step' }, '<h2>Новая группа</h2><div class="filters"><label>Код группы <input type="text" id="ngN" placeholder="ИБ-1-24" maxlength="40"></label>' +
-    '<label>Семестр <input type="text" id="ngT" placeholder="2026-осень"></label><button class="primary" id="ngOk">Создать</button></div>');
-  $('#ngOk', ng).onclick = async () => {
-    const n = $('#ngN', ng).value.trim(), term = $('#ngT', ng).value.trim();
-    if (!n) return toast('Укажите код группы');
-    const { error } = await sb.from('groups').insert({ group_name: n, term: term || null });
-    if (error) return toast(error.code === '23505' ? 'Такая группа уже есть' : errText(error));
-    reload();
-  };
-  const tch = el('div', { class: 'step' }, '<h2>Назначить преподавателя</h2><p class="small">Если почты ещё нет в списке, она добавится с ролью «преподаватель». Студента назначить нельзя.</p>' +
-    '<div class="filters"><label>Группа <select id="tcG">' + groupOptions(groups.filter(g => !g.archived), '', []) + '</select></label>' +
-    '<label>ФИО <input type="text" id="tcN" placeholder="Фамилия Имя Отчество"></label><label>Почта <input type="email" id="tcE" placeholder="teacher@kstu.kg"></label><button class="primary" id="tcOk">Назначить</button></div>');
-  $('#tcOk', tch).onclick = async () => {
-    const g = $('#tcG', tch).value, email = $('#tcE', tch).value.trim().toLowerCase(), fio = $('#tcN', tch).value.trim();
-    if (!g) return toast('Сначала создайте группу');
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return toast('Введите почту');
-    const ex = td.roster.find(r => r.email === email);
-    if (ex && ex.role === 'student') return toast('Эта почта в списке как студент группы ' + (ex.group_name || '—'));
-    if (!ex) {
-      if (!fio) return toast('Укажите ФИО преподавателя');
-      const { error } = await sb.from('roster').insert({ email, full_name: fio, group_name: null, role: 'teacher' });
-      if (error) return toast(errText(error));
-    }
-    const { error } = await sb.from('teacher_groups').upsert({ email, group_name: g }, { onConflict: 'email,group_name', ignoreDuplicates: true });
-    if (error) return toast(errText(error));
-    reload();
-  };
-  m.append(ng, tch);
 }
 
 /* ---------- кабинет студента ---------- */
@@ -2130,7 +2357,7 @@ function menu() {
   const mn = el('div', { class: 'menu' });
   const item = (t, fn) => mn.appendChild(el('button', { on: { click: () => { mn.remove(); fn(); } } }, t));
   if (SERVER) {
-    if (isStaff()) item('Ведомость', () => { location.hash = 'teacher'; });
+    if (isStaff()) item('Панель преподавателя', () => { location.hash = 'teacher'; });
     if (ME) item('Мой кабинет', () => { location.hash = 'me'; });
     if (ME) item('Выйти (' + ME.email + ')', async () => { await sb.auth.signOut(); location.hash = ''; location.reload(); });
   } else {
@@ -2178,25 +2405,43 @@ $('#moreBtn').onclick = menu;
   }
   if (!sb) { $('#main').innerHTML = '<div class="result bad">Не загрузилась библиотека входа. Проверьте интернет и обновите страницу.</div>'; return; }
   $('#reportBtn').hidden = true;   // на платформе ведомость у преподавателя, отчёт файлом не нужен
-  const urlErr = authErrorFromUrl();
+  const urlErr = authErrorFromUrl(), join = pendingJoin();
   const { data: { session } } = await sb.auth.getSession();
-  if (!session) return loginScreen(urlErr);
+  if (!session) {
+    if (!join) return loginScreen(urlErr);
+    const { data, error } = await sb.rpc('invite_info', { invite_code: join.code });
+    const inv = !error && data && data[0];
+    if (inv) { const j = Object.assign({}, join, { group: inv.group_name, term: inv.term }); saveJoin(j); return loginScreen(urlErr, j); }
+    doneJoin();
+    return loginScreen(error ? 'Не удалось проверить ссылку для записи: ' + errText(error) : 'Ссылка для записи недействительна или устарела — попросите у преподавателя новую. Если вы уже в списке группы, просто войдите по почте.');
+  }
   if (/access_token|refresh_token/.test(location.hash)) history.replaceState(null, '', location.pathname + location.search);
-  const { data: prof, error } = await sb.from('profiles').select('user_id, email, full_name, role').eq('user_id', session.user.id).maybeSingle();
+  const loadProfile = () => sb.from('profiles').select('user_id, email, full_name, role').eq('user_id', session.user.id).maybeSingle();
+  let { data: prof, error } = await loadProfile(), joinNote = '';
+  if (!error && join) {   // запись по ссылке: почта уже подтверждена кодом из письма
+    const r = await sb.rpc('join_group', { invite_code: join.code, full_name: join.name || null });
+    doneJoin();
+    if (r.error) joinNote = errText(r.error);
+    else {
+      joinNote = { joined: 'Вы записаны в группу ' + (join.group || ''), moved: 'Вы переведены в группу ' + (join.group || ''), staff: 'Это ссылка для студентов — вы вошли как преподаватель' }[r.data] || '';
+      if (r.data === 'joined' || r.data === 'moved') ({ data: prof, error } = await loadProfile());
+    }
+  }
   if (error || !prof || !prof.role) {
     await sb.auth.signOut();
-    return loginScreen(error ? 'Не удалось загрузить профиль: ' + errText(error) : 'Эта почта не входит в список группы — обратитесь к преподавателю.');
+    return loginScreen(error ? 'Не удалось загрузить профиль: ' + errText(error) : joinNote || 'Эта почта не входит в список группы — обратитесь к преподавателю.');
   }
   ME = prof;
   loadLocal(KEY + ':' + ME.user_id);
   S.uid = ME.user_id; S.name = ME.full_name || ME.email;   // uid — seed личных данных (общий с перепроверкой)
-  const hb = isStaff() ? el('button', { class: 'primary', on: { click: () => { location.hash = 'teacher'; } } }, 'Ведомость')
+  const hb = isStaff() ? el('button', { class: 'primary', on: { click: () => { location.hash = 'teacher'; } } }, 'Панель')
     : el('button', { on: { click: () => { location.hash = 'me'; } } }, 'Мой кабинет');
   $('#reportBtn').after(hb);
   try { await flushOutbox(); await pullProgress(); } catch (e) { toast('Прогресс с сервера не загрузился: ' + errText(e)); }
   save();
   window.addEventListener('hashchange', route);
   refreshChrome(); route(); maybePickDesign();
+  if (joinNote) toast(joinNote);
   sb.auth.onAuthStateChange(ev => { if (ev === 'SIGNED_OUT') location.reload(); });
 })();
 </script>
