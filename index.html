@@ -2544,10 +2544,10 @@ function deadlinesPage(m, td) {
   // заполнение по расписанию — то же правило, что seed_deadlines.sql: неделя w — пара в день первой пары + 7(w−1),
   // срок — через неделю в начало пары; итоговая работа — день пары 14-й недели, 23:59
   const fill = el('details', { class: 'pblock' }, '<summary><b>Заполнить по расписанию</b></summary><p class="small">Пары раз в неделю. Срок сдачи недели — начало следующей пары; итоговая работа — до 23:59 в день пары 14-й недели.</p>' +
-    '<div class="filters"><label>Первая пара <input type="date" id="fD"></label><label>с <input type="time" id="fA" value="08:00"></label><label>до <input type="time" id="fB" value="20:00"></label><button id="fGo">Заполнить</button></div>');
+    '<div class="filters"><label>Первая пара <input type="date" id="fD"></label><label>с <input type="time" id="fA" value="11:30"></label><label>до <input type="time" id="fB" value="18:00"></label><button id="fGo">Заполнить</button></div>');
   m.appendChild(fill);
   $('#fGo', fill).onclick = () => {
-    const d0 = $('#fD', fill).value, a = $('#fA', fill).value || '08:00', b = $('#fB', fill).value || '20:00';
+    const d0 = $('#fD', fill).value, a = $('#fA', fill).value || '11:30', b = $('#fB', fill).value || '18:00';
     if (!d0) return toast('Укажите дату первой пары');
     const day = k => { const d = new Date(d0 + 'T00:00'); d.setDate(d.getDate() + 7 * k); const p = n => String(n).padStart(2, '0'); return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()); };
     CAT.modules.forEach(M => {
