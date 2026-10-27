@@ -331,12 +331,16 @@ table.grade.dl .src, table.grade.hist td { white-space: normal; }
 .exambar { position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%); z-index: 70; display: flex; gap: 10px; align-items: center; max-width: calc(100vw - 32px);
   background: #9b1c1c; color: #fff; padding: 6px 8px 6px 14px; border-radius: 999px; font-size: 13.5px; font-weight: 600; box-shadow: 0 4px 16px rgba(0,0,0,.25); }
 .exambar .b { display: flex; gap: 6px; }
+.exambar.practice { background: #2b3a8f; }   /* пробная КТ — не красная, это тренировка */
+:root[data-design] .step.kt > .actions { position: static; }   /* задач много, внизу и так полоса таймера */
+.step.kt { margin-bottom: 16px; }
 :root[data-design="ide"] .exambar { bottom: 40px; }
 body.exam-on { padding-bottom: 76px; }
 @media (max-width: 600px) {
   .exambar, :root[data-design="ide"] .exambar { left: 0; right: 0; bottom: 0; transform: none; max-width: none; border-radius: 0; justify-content: space-between; padding: 6px 10px; font-size: 13px; }
   :root[data-design="ide"] .exambar { bottom: 26px; }
   .exambar .w { display: none; }
+  .exambar button { min-height: 34px; }
   body.exam-on { padding-bottom: 60px; }
 }
 .exambar button { background: rgba(255,255,255,.16); color: #fff; border: 1px solid rgba(255,255,255,.45); padding: 4px 10px; font-size: 13px; }
@@ -1000,6 +1004,22 @@ def ds_check(src, seed, reply):
     m, ds, clue = _ds(src, seed)
     s, h = _sc(m.check(reply, clue))
     return json.dumps({"score": s, "hint": h})
+
+# верный ответ — только для разбора пробной КТ (её числа не совпадают с вариантом на паре)
+def ds_clue(src, seed):
+    m, ds, clue = _ds(src, seed)
+    ans = None
+    if hasattr(m, "solve"):   # эталон часто хранит сами данные («v:» + набор), а ответ считает solve
+        try:
+            ans = m.solve(ds)
+        except Exception:
+            ans = None
+    if ans is None:
+        ans = clue
+    if isinstance(ans, (list, tuple)):
+        ans = " ".join(str(x) for x in ans)
+    ans = str(ans)
+    return (ans[2:] if ans.startswith("v:") else ans)[:300]
 
 def ds_selftest(src, seed, bad):
     m, ds, clue = _ds(src, seed)
@@ -1671,6 +1691,7 @@ async function lesson(l, want) {
   m.innerHTML = '';
   m.appendChild(el('div', { class: 'crumbs' }, '<a href="#' + l.mod.lessons[0].key + '">' + (design() === 'ide' ? wdir(l.mod) + '/' + esc(slug(l.title)) : esc(l.mod.label) + ' · ' + esc(shortTitle(l.mod))) + '</a>'));
   m.appendChild(el('h1', { class: 'lesson-h' }, esc(l.title)));
+  if (/КТ-\d/.test(l.title) && !examNow()) m.appendChild(el('div', { class: 'result ktnote' }, 'Потренироваться перед парой: <a href="#tools/kt/' + l.key + '">пробная ' + esc(l.title.replace(/\..*$/, '')) + '</a> — те же задачи с другими числами, с таймером, без баллов.'));
   const bar = el('nav', { class: 'stepbar', 'aria-label': 'Шаги урока' });
   l.steps.forEach(s => {
     bar.appendChild(el('a', { id: 'sb-' + s.id, class: (isTask(s) ? 'task ' : '') + stCls(s.id), href: '#' + l.key + '/' + s.num, 'data-n': s.num, title: 'Шаг ' + s.num + ', ' + (TYPE[s.t] || '').toLowerCase() + ': ' + strip(s.title),
@@ -2027,6 +2048,7 @@ async function examCheck(m, l, want) {
     m.className = ''; m.innerHTML = '';
     m.appendChild(el('h1', { class: 'lesson-h' }, esc(l.title)));
     m.appendChild(el('section', { class: 'pblock examgate' }, '<h2>Контрольная откроется на паре</h2><p>Когда преподаватель её начнёт, обновите страницу и введите код с доски. ' +
+      (/КТ-\d/.test(l.title) ? 'А пока — <a href="#tools/kt/' + l.key + '">пробная ' + esc(l.title.replace(/\..*$/, '')) + '</a> с таймером и без баллов. ' : '') +
       'Если контрольную пишут в Safe Exam Browser, подготовьте его заранее: ' + sebLinks() + '.</p>'));
     return true;
   }
@@ -3248,6 +3270,7 @@ async function cabinet() {
   rt.innerHTML = '<tr><td>Safe Exam Browser</td><td>' + (inSEB() ? '<span class="badge full">да</span>' : '<span class="badge">нет</span> — ' + sebLinks()) + '</td></tr>' +
     '<tr><td>Адрес сети</td><td class="rIp">…</td></tr><tr><td>Устройство</td><td>' + esc(DEVICE.slice(0, 8)) + '</td></tr>';
   ready.appendChild(el('div', { style: 'overflow-x:auto' })).appendChild(rt);
+  ready.appendChild(el('p', { class: 'small' }, 'Потренироваться: <a href="#tools/kt">пробная контрольная</a> — те же задачи с другими числами, с таймером, без баллов.'));
   ready.addEventListener('toggle', () => { if (ready.open) sb.rpc('my_ip').then(r => { $('.rIp', rt).textContent = (r && r.data) || 'не определён'; }, () => { $('.rIp', rt).textContent = 'не определён'; }); }, { once: true });
   m.appendChild(ready);
 
@@ -3342,7 +3365,7 @@ function helpModal() {
     '<p><b>Сроки.</b> Баллы идут только за сдачи до срока вашей группы; контрольные — только на паре. Сроки, продления и ближайший срок — в кабинете.</p>' +
     '<p><b>Устная проверка.</b> Преподаватель может попросить объяснить свой код. Если не получилось — работа «не допущена», её баллы не идут в рейтинг до пересдачи.</p>' +
     '<p><b>Нет интернета.</b> Ответ сохранится и уйдёт на сервер, когда связь появится.</p>') +
-    '<p><b>Инструменты</b> (в меню слева). Песочница Python без установки и разборы по шагам в обозначениях уроков: Евклид, обратный, степень, КТО, φ, Z_p*, Диффи — Хеллман, шифры, частоты, байты и XOR, GF(2⁸). Код из теории открывается в песочнице кнопкой «▶ В песочнице». На контрольной инструменты закрыты.</p>' +
+    '<p><b>Инструменты</b> (в меню слева). Песочница Python без установки и разборы по шагам в обозначениях уроков: Евклид, обратный, степень, КТО, φ, Z_p*, Диффи — Хеллман, шифры, частоты, байты и XOR, GF(2⁸). Код из теории открывается в песочнице кнопкой «▶ В песочнице». Там же «Пробная КТ» — тренировочный вариант контрольной с таймером, без баллов. На контрольной инструменты закрыты.</p>' +
     '<p class="small">Вопросы по курсу — преподавателю вашей группы.</p><div class="actions"><button class="primary" id="hpX">Закрыть</button></div></div>';
   document.body.appendChild(md);
   $('#hpX', md).onclick = () => md.remove();
@@ -3403,7 +3426,7 @@ function report() {
    Всё считается в браузере, на сервер ничего не уходит. Обозначения — как в уроках: расширенный Евклид таблицей r, q, x, y
    (нед. 3), степень со старшего бита (нед. 5), КТО через Mᵢ и yᵢ (нед. 6), xtime (нед. 8). Взлома (перебора ключей,
    подбора ключа Виженера) здесь нет: это студенты программируют сами в ЛР. Во время контрольной раздел закрыт. */
-const TOOL_TABS = [['', 'Python'], ['num', 'Числа'], ['cipher', 'Шифры'], ['bytes', 'Байты и XOR'], ['gf', 'GF(2⁸)']];
+const TOOL_TABS = [['', 'Python'], ['kt', 'Пробная КТ'], ['num', 'Числа'], ['cipher', 'Шифры'], ['bytes', 'Байты и XOR'], ['gf', 'GF(2⁸)']];
 const TOOL = {};
 const examNow = () => EXAM_LIVE || !!(EXAM && EXAM.status === 'active' && Date.parse(EXAM.ends_at) > Date.now());
 // запуск Python на сайте во время контрольной закрыт везде, кроме уроков самой контрольной: иначе любая задача с кодом —
@@ -3871,6 +3894,162 @@ const GF = [
     } },
 ];
 TOOL.gf = (m, item) => toolSet(m, 'gf', GF, item);
+
+/* --- Пробная контрольная: тот же урок КТ, другие числа, общий таймер, без баллов ----------
+   Ответы проверяются в браузере и никуда не отправляются; состояние — в этом браузере (KEY-kt-<урок>).
+   Числа — от своего зерна «practice|…»: с вариантом на паре (личный номер входа) не совпадают. */
+const KT_LESSONS = () => LESSONS.filter(l => /КТ-\d/.test(l.title) && l.steps.some(s => s.t === 'dataset'));
+// после пробной — разбор задачи по шагам в «Инструментах»
+const KT_TOOL = [[/Безу|Евклид/, 'num/egcd', 'расширенный Евклид'], [/Обратный/, 'num/inv', 'обратный по модулю'], [/Большая степень|степень по модулю|Ферма/i, 'num/pow', 'степень по модулю'],
+  [/Функция Эйлера|φ\(n\)/, 'num/phi', 'φ(n)'], [/КТО|китайск/i, 'num/crt', 'КТО'], [/Систем[аы] счисления/, 'bytes/base', 'системы счисления'],
+  [/UTF-8/, 'bytes/utf8', 'текст → байты'], [/XOR/, 'bytes/xor', 'XOR'], [/Цезар|Виженер|аффин/i, 'cipher/enc', 'шифры'], [/GF\(2|xtime/, 'gf', 'GF(2⁸)']];
+const ktKey = l => KEY + '-kt-' + l.key;
+const ktLoad = l => { try { return JSON.parse(localStorage.getItem(ktKey(l)) || 'null'); } catch (e) { return null; } };
+const ktSave = (l, st) => { try { localStorage.setItem(ktKey(l), JSON.stringify(st)); } catch (e) {} };
+const ktSeed = (st, s) => 'practice|' + S.uid + '|' + s.id + '|' + st.v;
+const mmss = ms => { ms = Math.max(0, ms); return Math.floor(ms / 60000) + ':' + String(Math.floor(ms / 1000) % 60).padStart(2, '0'); };
+const ktTotal = (st, tasks) => tasks.reduce((a, s) => a + ((st.tasks[s.id] || {}).score || 0) * s.cost, 0);
+let KT_TICK = null;
+
+TOOL.kt = (m, item) => {
+  const list = KT_LESSONS(), l = list.find(x => x.key === item) || list[0];
+  if (!l) { m.appendChild(el('div', { class: 'result' }, 'Контрольных с задачами на данные в курсе нет.')); return; }
+  if (list.length > 1) {
+    const bar = el('div', { class: 'tsub' });
+    list.forEach(x => bar.appendChild(el('button', { class: x === l ? 'on' : '', 'aria-pressed': String(x === l), on: { click: () => {
+      history.replaceState(null, '', '#tools/kt/' + x.key); tools('kt', x.key);
+    } } }, esc(x.title.replace(/\..*$/, '')))));
+    m.appendChild(bar);
+  }
+  const box = el('div'); m.appendChild(box);
+  ktPage(box, l);
+};
+
+async function ktPage(box, l) {
+  clearInterval(KT_TICK); KT_TICK = null; ktBar(null);
+  box.innerHTML = '<div class="loading">Загрузка…</div>';
+  let data;
+  try { data = await loadModule(l.mod.n); } catch (e) { box.innerHTML = '<div class="result bad">Не удалось загрузить задачи. Проверьте интернет.</div>'; return; }
+  const steps = data.lessons[l.mod.lessons.indexOf(l)].steps.map((s, i) => Object.assign({}, s, { cost: l.steps[i].cost }));
+  const tasks = steps.filter(s => s.t === 'dataset'), max = tasks.reduce((a, s) => a + s.cost, 0);
+  const name = l.title.replace(/\..*$/, '');
+  let st = ktLoad(l);
+  const finish = () => { if (st && !st.end) { st.end = Date.now(); ktSave(l, st); } draw(); };
+  const draw = () => {
+    if (!document.body.contains(box)) { clearInterval(KT_TICK); KT_TICK = null; ktBar(null); return; }
+    box.innerHTML = '';
+    if (!st || !st.start) return drawStart();
+    if (!st.end && st.min && Date.now() >= st.start + st.min * 60000) { st.end = st.start + st.min * 60000; ktSave(l, st); }
+    return st.end ? drawResult() : drawRun();
+  };
+
+  const drawStart = () => {
+    ktBar(null);
+    const sec = el('section', { class: 'pblock' }, '<h2>Пробная ' + esc(name) + '</h2>' +
+      '<p>Тренировочный вариант: те же ' + tasks.length + ' задач, что на паре, но с другими числами. <b>Баллы не идут в ведомость</b>, ответы никуда не отправляются — проверка сразу, здесь.</p>' +
+      '<ul class="small"><li>На всю работу — общее время (на паре 35–40 минут), на каждую задачу после скачивания данных — 5 минут, как на настоящей КТ.</li>' +
+      '<li>Решайте на бумаге, без калькулятора: на паре инструменты и Python на сайте будут закрыты.</li>' +
+      '<li>После — разбор: ваш ответ, верный ответ и ссылка на разбор задачи по шагам.</li></ul>' +
+      '<div class="filters"><label>Время <select class="ktMin"><option value="40">40 минут</option><option value="60">60 минут</option><option value="90">90 минут</option><option value="0">без ограничения</option></select></label></div>');
+    sec.appendChild(pbtn('Начать пробную КТ', () => {
+      st = { v: ((st && st.v) || 0) + 1, min: +$('.ktMin', sec).value, start: Date.now(), tasks: {} };
+      ktSave(l, st); draw(); window.scrollTo(0, 0);
+    }, true));
+    box.appendChild(sec);
+    if (st && st.end) box.appendChild(el('p', { class: 'small' }, 'Прошлая попытка: ' + fmt(ktTotal(st, tasks)) + ' из ' + max + '.'));
+  };
+
+  const drawRun = () => {
+    const deadline = st.min ? st.start + st.min * 60000 : 0;
+    ktBar('Пробная ' + esc(name) + (deadline ? ' · осталось <b class="ktLeft">' + mmss(deadline - Date.now()) + '</b>' : '') + '<span class="w"> · без баллов</span>', finish);
+    box.appendChild(el('p', { class: 'small' }, 'Пробный вариант №' + st.v + '. Скачайте данные задачи — с этого момента на неё 5 минут. Порядок любой.'));
+    const ticks = [];
+    tasks.forEach((s, k) => {
+      const r = st.tasks[s.id] = st.tasks[s.id] || {};
+      const card = el('section', { class: 'step kt cur' });   // cur: в «Ключе» и «Рабочем месте» видна только текущая карточка шага
+      card.append(el('div', { class: 'step-h' }, '<span class="num">' + (k + 1) + '</span><span class="kind"><span class="t">' + s.cost + ' ' + plural(s.cost, 'балл', 'балла', 'баллов') + '</span></span>'),
+        el('div', { class: 'body' }, s.html));
+      const area = el('div'), acts = el('div', { class: 'actions' }), res = el('div', { class: 'result', hidden: '' }), tl = el('span', { class: 'timer' });
+      const inp = el('input', { type: 'text', class: 'answer', placeholder: 'Ваш ответ', autocomplete: 'off' });
+      const get = pbtn('Скачать данные', async () => {
+        if (await pyBlocked()) return;
+        get.disabled = true; get.textContent = 'Готовлю данные…';
+        try { r.ds = await py('ds_get', [s.src, ktSeed(st, s)]); r.at = Date.now(); ktSave(l, st); paint(); }
+        catch (e) { toast('Не удалось подготовить данные: ' + e.message); get.disabled = false; get.textContent = 'Скачать данные'; }
+      }, true);
+      const send = pbtn('Ответить', async () => {
+        if (!inp.value.trim()) return toast('Введите ответ');
+        if (DS_LIMIT - (Date.now() - r.at) <= 0) return paint();
+        if (await pyBlocked()) return;
+        send.disabled = true;
+        try {
+          const x = JSON.parse(await py('ds_check', [s.src, ktSeed(st, s), inp.value]));
+          r.reply = inp.value; r.score = x.score; r.hint = x.hint || ''; ktSave(l, st); paint();
+        } catch (e) { toast('Ошибка проверки: ' + e.message); send.disabled = false; }
+      }, true);
+      inp.addEventListener('keydown', e => { if (e.key === 'Enter') send.click(); });
+      const left = () => DS_LIMIT - (Date.now() - r.at);
+      const paintTimer = () => { tl.className = 'timer' + (left() < 60000 ? ' low' : ''); tl.textContent = 'на задачу: ' + mmss(left()); };
+      const paint = () => {
+        area.innerHTML = ''; acts.innerHTML = ''; res.hidden = true;
+        if (r.ds !== undefined) area.append(el('div', { class: 'small' }, 'Данные:'), el('pre', {}, esc(r.ds)));
+        if (r.score !== undefined) {
+          resultBox(res, r.score, r.score === 1 ? 'Верно' : r.score > 0 ? 'Частично: ' + fmt(r.score * s.cost) + ' из ' + s.cost : 'Неверно',
+            'Ваш ответ: <code>' + esc(r.reply) + '</code>' + (r.hint ? '<br>' + esc(r.hint) : '') + '<br><span class="small">Верный ответ и разбор — после завершения.</span>');
+          return;
+        }
+        if (r.ds === undefined) { acts.append(get); return; }
+        if (left() <= 0) { resultBox(res, 0, 'Время на задачу вышло', 'После скачивания данных на ответ 5 минут.'); return; }
+        paintTimer(); acts.append(inp, send, tl);
+      };
+      ticks.push(() => { if (r.ds !== undefined && r.score === undefined && document.body.contains(tl)) { if (left() <= 0) paint(); else paintTimer(); } });
+      card.append(area, acts, res); box.appendChild(card);
+      paint();
+    });
+    const end = el('div', { class: 'actions' }); end.appendChild(pbtn('Завершить пробную КТ', () => { if (confirm('Завершить пробную КТ и посмотреть разбор?')) finish(); }));
+    box.appendChild(end);
+    clearInterval(KT_TICK);
+    KT_TICK = setInterval(() => {
+      if (!document.body.contains(box)) { clearInterval(KT_TICK); KT_TICK = null; ktBar(null); return; }
+      if (deadline && Date.now() >= deadline) { toast('Время пробной КТ вышло'); return finish(); }
+      const t = $('#ktbar .ktLeft'); if (t) t.textContent = mmss(deadline - Date.now());
+      ticks.forEach(f => f());
+    }, 1000);
+  };
+
+  const drawResult = () => {
+    clearInterval(KT_TICK); KT_TICK = null; ktBar(null);
+    const total = ktTotal(st, tasks), used = Math.max(1, Math.round((st.end - st.start) / 60000));
+    const sec = el('section', { class: 'pblock' }, '<h2>Пробная ' + esc(name) + ': ' + fmt(total) + ' из ' + max + '</h2><p class="small">Вариант №' + st.v + ', ' + used + ' ' + plural(used, 'минута', 'минуты', 'минут') +
+      '. Это тренировка — в ведомость не идёт. Где ошибка — откройте разбор по шагам в «Инструментах» и пересчитайте на бумаге.</p>');
+    const t = el('table', { class: 'grade ktres' });
+    t.innerHTML = '<tr><th>Задача</th><th>Баллы</th><th>Ваш ответ</th><th>Верный ответ</th><th>Разбор</th></tr>';
+    box.appendChild(sec); sec.appendChild(el('div', { style: 'overflow-x:auto' })).appendChild(t);
+    tasks.forEach((s, k) => {
+      const r = st.tasks[s.id] || {}, text = strip(s.html).replace(/\s+/g, ' ').trim(), title = text.split('. ').slice(0, 2).join('. ').slice(0, 60);
+      const tool = KT_TOOL.find(([re]) => re.test(text));
+      const tr = el('tr', { class: r.score === 1 ? 'ok' : '' }, '<td>' + esc(title) + '</td><td>' + (r.score === undefined ? '0' : fmt(r.score * s.cost)) + ' из ' + s.cost + '</td><td>' +
+        (r.reply ? '<code>' + esc(r.reply) + '</code>' : '<span class="small">' + (r.ds !== undefined ? 'нет ответа' : 'не начата') + '</span>') + '</td><td class="ktAns"></td><td>' +
+        (tool ? '<a href="#tools/' + tool[1] + '">' + esc(tool[2]) + '</a>' : '') + '</td>');
+      t.appendChild(tr);
+      if (r.ds !== undefined) py('ds_clue', [s.src, ktSeed(st, s)]).then(a => { $('.ktAns', tr).innerHTML = '<code>' + esc(a) + '</code>'; }, () => {});
+    });
+    const again = el('div', { class: 'actions' });
+    again.appendChild(pbtn('Новый вариант', () => { st.start = 0; ktSave(l, st); draw(); }, true));
+    sec.appendChild(again);
+  };
+  draw();
+}
+// полоса пробной КТ внизу экрана — как у настоящей, но другого цвета и без журнала
+function ktBar(html, onFinish) {
+  let b = $('#ktbar');
+  document.body.classList.toggle('exam-on', !!html || !!EXAM);
+  if (!html) { if (b) b.remove(); return; }
+  if (!b) { b = el('div', { id: 'ktbar', class: 'exambar practice', role: 'status' }, '<span class="t"></span><span class="b"></span>'); document.body.appendChild(b); }
+  $('.t', b).innerHTML = html;
+  const btns = $('.b', b); btns.innerHTML = '';
+  btns.appendChild(el('button', { on: { click: () => { if (confirm('Завершить пробную КТ и посмотреть разбор?')) onFinish(); } } }, 'Завершить'));
+}
 
 /* --- Python: песочница --- */
 // код хранится только в этом браузере; prev — прошлый код, если его заменил пример
