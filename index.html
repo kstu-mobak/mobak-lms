@@ -135,6 +135,7 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 .menu-btn { display: none; }
 #expBtn { display: none; }
 .show-sm { display: none; }
+@media (max-width: 600px) { #toolsBtn { display: none; } }   /* на телефоне — в меню «⋯» и на главной */
 .layout { display: grid; grid-template-columns: 300px minmax(0, 1fr); min-height: calc(100vh - var(--top-h)); }
 nav.side { border-right: 1px solid var(--line); background: var(--panel); padding: 12px 10px 48px; overflow-y: auto; position: sticky; top: var(--top-h); height: calc(100vh - var(--top-h)); scrollbar-width: thin; }
 main { padding: 28px 40px 96px; width: 100%; min-width: 0; margin: 0 auto; max-width: 940px; }
@@ -546,6 +547,8 @@ body.bare main { max-width: 620px; padding-top: 12vh; }
 .now .dots i.th { width: 10px; background: var(--line); }
 .now button { width: 100%; }
 .now .sum { font-size: 14px; color: var(--muted); margin-top: 14px; }
+.now .tlink { display: block; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line2); font-size: 14px; color: var(--text); }
+.now .tlink b { color: var(--accent); }
 .route .wk { display: grid; grid-template-columns: 64px minmax(0, 1fr) auto; gap: 4px 18px; align-items: center; padding: 16px 4px; border-bottom: 2px solid var(--line); text-decoration: none; color: inherit; }
 .route .wk:hover .t { color: var(--accent); }
 .route .n { font: 700 30px var(--display); color: var(--faint); }
@@ -780,6 +783,7 @@ kbd { font: 12px var(--mono); border: 1px solid var(--line); border-bottom-width
   <div class="brand" id="brand"><span class="logo">М</span><span>МОБАК</span><small>Математические основы и базовые алгоритмы криптографии</small></div>
   <div class="grow"></div>
   <div class="score" id="score"></div>
+  <button id="toolsBtn" title="Песочница Python и разборы по шагам">Инструменты</button>
   <button id="reportBtn" class="primary"><span class="hide-sm">Отчёт преподавателю</span><span class="show-sm">Отчёт</span></button>
   <button id="moreBtn" aria-label="Ещё">⋯</button>
 </header>
@@ -1589,6 +1593,7 @@ function homeKey(m) {
   now.appendChild(el('button', { class: 'primary', on: { click: () => location.hash = nx.key } }, totalGot() ? 'Продолжить' : 'Начать курс'));
   now.appendChild(el('div', { class: 'sum' }, 'Решено задач в уроке: ' + nxs.done + ' из ' + nxs.n));
   const pys = el('div', { class: 'pystat' }); paintPy(pys); now.appendChild(pys);
+  now.appendChild(el('a', { class: 'tlink', href: '#tools' }, '<b>Инструменты</b> — песочница Python, Евклид, степень, КТО и шифры по шагам'));
   kh.appendChild(now); m.appendChild(kh);
   testBanner(m);
   m.appendChild(el('div', { class: 'sec-h' }, '<h2>Недели</h2><span class="small">' + fmt(totalGot()) + ' из ' + CAT.total + ' баллов</span>'));
@@ -1615,6 +1620,7 @@ function homeIde(m) {
   const ws = el('div', { class: 'ws' }, '<div class="ws-grid"><div>' +
     '<h1 class="md-h" data-h="#">Математические основы и базовые алгоритмы криптографии</h1><p>Теория, тесты и программы на Python в одном окне. Код запускается и проверяется прямо здесь, ничего устанавливать не нужно.</p>' +
     '<div class="resume"><div class="w">' + (totalGot() ? 'Продолжить: ' : 'Начать: ') + esc(nx.mod.label) + '</div><div class="t">' + esc(nx.title) + '</div></div>' +
+    '<h2 class="md-h" data-h="##">Инструменты</h2><p><a href="#tools">Песочница Python</a> без установки и разборы по шагам: <a href="#tools/num">числа</a>, <a href="#tools/cipher">шифры</a>, <a href="#tools/bytes">байты и XOR</a>, <a href="#tools/gf">GF(2⁸)</a>.</p>' +
     '<h2 class="md-h" data-h="##">Клавиши</h2><div class="keys"><span><kbd>Alt</kbd>+<kbd>→</kbd></span><span>следующий шаг</span><span><kbd>Alt</kbd>+<kbd>←</kbd></span><span>предыдущий шаг</span><span><kbd>Ctrl</kbd>+<kbd>B</kbd></span><span>скрыть проводник</span></div>' +
     '<h2 class="md-h" data-h="##">Прогресс по неделям</h2><div class="prog">' + prog + '</div></div>' +
     '<div class="problems"><div class="ph"><b>Проблемы<span class="cnt">' + unsolved.length + '</span></b><span>Сначала начатые уроки</span></div>' + (probs || '<a href="#">Нерешённых задач нет</a>') + '</div></div>');
@@ -1631,6 +1637,7 @@ function homeNote(m) {
     '<p class="meta">' + (S.name ? esc(S.name) + ': ' : '') + 'набрано <b>' + fmt(totalGot()) + '</b> из ' + CAT.total + ', пройдено уроков <b>' + done + '</b> из ' + TL.length + '</p><div class="cont"></div>');
   $('.cont', tp).append(el('button', { class: 'primary', on: { click: () => location.hash = nx.key } }, totalGot() ? 'Продолжить урок' : 'Начать курс'),
     el('span', { class: 'where' }, esc(nx.mod.label) + '<b>' + esc(nx.title) + '</b>'));
+  tp.appendChild(el('p', { class: 'meta' }, '<a href="#tools">Инструменты</a>: песочница Python и разборы по шагам — Евклид, степень, КТО, шифры, байты.'));
   m.appendChild(tp); testBanner(m);
   let h = '<h2>Оглавление</h2><ol>';
   CAT.modules.forEach(M => {
@@ -3880,6 +3887,7 @@ function menu() {
   if ($('.menu')) return $('.menu').remove();
   const mn = el('div', { class: 'menu' });
   const item = (t, fn) => mn.appendChild(el('button', { on: { click: () => { mn.remove(); fn(); } } }, t));
+  item('Инструменты: Python, Евклид, шифры', () => { location.hash = 'tools'; });
   if (SERVER) {
     if (isStaff()) item('Панель преподавателя', () => { location.hash = 'teacher'; });
     if (ME) item('Мой кабинет', () => { location.hash = 'me'; });
@@ -3895,7 +3903,6 @@ function menu() {
       f.click();
     });
   }
-  item('Инструменты: Python, Евклид, шифры', () => { location.hash = 'tools'; });
   mn.appendChild(el('div', { class: 'sep' }));
   mn.appendChild(el('div', { class: 'mh' }, 'Оформление'));
   Object.entries(DESIGNS).forEach(([k, v]) => item((design() === k ? '● ' : '○ ') + v.name, () => setDesign(k)));
@@ -3920,6 +3927,7 @@ $('#main').addEventListener('click', e => {
 });
 $('#brand').onclick = () => location.hash = '';
 $('#reportBtn').onclick = report;
+$('#toolsBtn').onclick = () => { location.hash = 'tools'; };
 $('#moreBtn').onclick = menu;
 (async () => {
   try { await loadCatalog(); }
