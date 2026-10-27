@@ -21,10 +21,12 @@
   window.loadDesignFonts(root.dataset.design);
 })();
 </script>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<!-- integrity: браузер не запустит библиотеку, если CDN отдаст не тот файл (хеши — cdnjs / сверены 27.10.2026) -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css" integrity="sha512-uf06llspW44/LZpHzHT6qBOIVODjWtv4MxCricRxkzvopAlSWnTf6hpZTFxuuZcuNE9CBQhqE0Seu1CoRk84nQ==" crossorigin="anonymous" referrerpolicy="no-referrer">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js" integrity="sha512-OeZ4Yrb/W7d2W4rAMOO0HQ9Ro/aWLtpW9BUSR2UOWnSV2hprXLkkYnnCGc9NeLUxxE4ZG7zN16UuT1Elqq8Opg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js" integrity="sha512-Vs2GKxnxnTQBRW7o2xXZ9A28njjmu5RToS42efiKNEWmikov0inZY522EtGVK5CcVo0M/FQwmXsTfl9skgRnvw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js" integrity="sha384-GFr3yTh5lJznCbZfpTtXnwboFsxqtTQoeTZCRHhE0579KrRmlCzen5AA8ohaB5ug" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<meta name="referrer" content="no-referrer">
 <style>
 /* Три оформления одного сайта: data-design = key («Ключ», по умолчанию) | ide («Рабочее место») | note («Тетрадь»).
    Логика и разметка шагов общие; оформления меняют токены ниже и раскладку (блоки «ОФОРМЛЕНИЕ …» в конце). */
@@ -825,6 +827,8 @@ function loadLocal(key) {
   try { const raw = localStorage.getItem(key); if (raw) S = Object.assign(S, JSON.parse(raw)); } catch (e) {}
 }
 if (!SERVER) { loadLocal(KEY); if (!S.uid) S.uid = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2)); }
+// выход: кеш прогресса и код песочницы — данные этого человека на общем компьютере; неотправленные ответы (outbox) остаются
+function forgetLocal() { try { if (KEYU) localStorage.removeItem(KEYU); localStorage.removeItem(KEY + '-sandbox'); } catch (e) {} }
 let saveWarned = false;
 function save() {
   try { localStorage.setItem(KEYU, JSON.stringify(S)); }
@@ -926,7 +930,7 @@ async function loadModule(n) {
 
 /* ---------- утилиты ---------- */
 const $ = (sel, el = document) => el.querySelector(sel);
-const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const strip = h => { const d = document.createElement('div'); d.innerHTML = h; return d.textContent; };
 function el(tag, attrs = {}, html) {
   const e = document.createElement(tag);
@@ -1310,6 +1314,11 @@ R.parsons = (s, root) => {
 
 R.dataset = (s, root) => {
   const r = rec(s.id);
+  // КТ на контрольной: номера наборов начинаются с личного номера входа (salt), который сервер выдал при входе по коду, —
+  // заранее свой вариант не посчитать. Сервер принимает наборы КТ только из этих номеров (exam_gate)
+  const L = STEPMETA[s.id] && STEPMETA[s.id].lesson;
+  const base = () => L && isCtrlLesson(L) && EXAM && EXAM.salt && EXAM.section_id === L.mod.sectionId ? EXAM.salt : 0;
+  if (base() && !(r.set >= base() && r.set < base() + 100)) { r.set = base(); delete r.ds; delete r.at; delete r.reply; save(); }
   const area = el('div', { class: 'dataset' });
   const stat = el('div', { class: 'pystat' }); paintPy(stat);
   const getBtn = el('button', { class: 'primary' }, 'Скачать');
@@ -1332,7 +1341,7 @@ R.dataset = (s, root) => {
     area.innerHTML = '';
     if (r.ds === undefined) { inp.disabled = send.disabled = true; getBtn.textContent = 'Скачать'; return; }
     inp.disabled = send.disabled = left() <= 0;
-    area.append(el('div', { class: 'small' }, 'Ваши данные (набор №' + ((r.set || 0) + 1) + '):'), el('pre', {}, esc(r.ds)), el('div', { class: 'actions' }));
+    area.append(el('div', { class: 'small' }, 'Ваши данные (набор №' + ((r.set || 0) - base() + 1) + '):'), el('pre', {}, esc(r.ds)), el('div', { class: 'actions' }));
     const a = $('.actions', area);
     a.append(el('button', { class: 'link', on: { click: () => download(s.id + '.txt', r.ds) } }, 'Скачать файл ещё раз'),
       el('button', { class: 'link', on: { click: () => copy(r.ds) } }, 'Копировать'), timer);
@@ -1402,6 +1411,7 @@ R.code = (s, root) => {
   const check = el('button', { class: 'primary' }, 'Отправить');
   const budget = () => Math.max(30000, (s.ntests || 10) * (s.tl || 5) * 1000);
   check.addEventListener('click', async () => {
+    if (await pyBlocked()) return;
     const code = ed.get();
     if (!code.trim() || code.trim() === tpl.trim()) return toast('Сначала напишите решение');
     if (s.server) {   // в браузере эту задачу не проверить — только сохранить для серверной перепроверки
@@ -1431,6 +1441,7 @@ R.code = (s, root) => {
   const runOut = el('div', { class: 'result', hidden: '' });
   const runBtn = el('button', {}, 'Запустить');
   runBtn.addEventListener('click', async () => {
+    if (await pyBlocked()) return;
     runBtn.disabled = true; runBtn.textContent = 'Выполняется…';
     try {
       const code = ed.get();
@@ -1870,11 +1881,13 @@ const inSEB = () => !!window.SafeExamBrowser || /\bSEB\/\d/.test(navigator.userA
 const SEB_FILE = 'exam/mobak-exam.seb';
 let EXAMS = null, EXAMS_AT = 0;   // идущие контрольные группы студента (my_exams), кеш на 20 с
 let EXAM = null;                  // контрольная, в которую студент вошёл с этого устройства
+let EXAM_LIVE = false;            // у группы студента сейчас идёт контрольная — инструменты и запуск кода закрыты
 async function myExams(force) {
   if (!sb || !ME || ME.role !== 'student') return [];
   if (!force && EXAMS && Date.now() - EXAMS_AT < 20000) return EXAMS;
   const { data, error } = await sb.rpc('my_exams').then(r => r, e => ({ error: e }));
   EXAMS = error ? [] : data || []; EXAMS_AT = Date.now();
+  EXAM_LIVE = EXAMS.length > 0;
   return EXAMS;
 }
 async function sebInfo() {
@@ -1962,8 +1975,8 @@ function examBar() {
   } } }, 'Завершить'));
 }
 function startExamMode(ex) {
-  if (EXAM && EXAM.exam_id === ex.exam_id) { EXAM.status = ex.status; examBar(); return; }
-  EXAM = { exam_id: ex.exam_id, section_id: ex.section_id, ends_at: ex.ends_at, status: ex.status || 'active' };
+  if (EXAM && EXAM.exam_id === ex.exam_id) { EXAM.status = ex.status; EXAM.salt = ex.salt || EXAM.salt; examBar(); return; }
+  EXAM = { exam_id: ex.exam_id, section_id: ex.section_id, ends_at: ex.ends_at, status: ex.status || 'active', salt: ex.salt || 0 };
   if (!examTimer) {
     let tick = 0;
     examTimer = setInterval(() => {
@@ -2550,7 +2563,7 @@ function csv(rows, g) {
 let XLSXP = null;
 async function xlsx(rows, g) {
   try {
-    if (!window.XLSX) await (XLSXP = XLSXP || new Promise((ok, no) => { const s = el('script', { src: 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js' }); s.onload = ok; s.onerror = () => { XLSXP = null; no(new Error('нет связи')); }; document.head.appendChild(s); }));
+    if (!window.XLSX) await (XLSXP = XLSXP || new Promise((ok, no) => { const s = el('script', { src: 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js', integrity: 'sha512-r22gChDnGvBylk90+2e/ycr3RVrDi8DIOkIGNhJlKfuyQM4tIRAI062MaV8sfjQKYVGjOBaZBOA87z+IhZE9DA==', crossorigin: 'anonymous' }); s.onload = ok; s.onerror = () => { XLSXP = null; no(new Error('нет связи')); }; document.head.appendChild(s); }));
   } catch (e) { return toast('Не удалось загрузить выгрузку xlsx — скачайте CSV'); }
   const data = exportRows(rows), ws = window.XLSX.utils.aoa_to_sheet(data);
   ws['!cols'] = data[0].map((h, i) => ({ wch: i === 1 ? 32 : i === 2 ? 28 : Math.max(6, Math.min(18, String(h).length + 2)) }));
@@ -2781,6 +2794,7 @@ async function examPage(m, td) {
     };
     m.appendChild(el('div', { class: 'filters' })).appendChild(mode);
   }
+  sebBlock(m);
   const box = el('div'); m.appendChild(box);
   const { data: exams, error } = await sb.from('exams').select('*').eq('group_name', g).order('starts_at', { ascending: false }).limit(30);
   if (error) { box.innerHTML = '<div class="result bad">' + esc(errText(error)) + '</div>'; return; }
@@ -2800,6 +2814,37 @@ async function examPage(m, td) {
   m.appendChild(el('p', { class: 'small' }, 'Пока для группы и модуля есть хоть одна контрольная, сервер принимает сдачи КТ и итогового теста этого модуля только во время открытой контрольной и только с устройства, с которого студент вошёл по коду. ' +
     'Пересдача — новая контрольная по тому же модулю. Как подготовить ноутбуки и сеть — памятка lms/exam/README.md.'));
 }
+// эталон Safe Exam Browser: преподаватель открывает панель в SEB с файлом контрольной и запоминает ключ его настроек
+function sebBlock(m) {
+  const d = el('details', { class: 'pblock' }, '<summary><b>Safe Exam Browser: эталон настроек</b></summary>');
+  const body = el('div');
+  d.appendChild(body); m.appendChild(d);
+  const draw = async () => {
+    const { data, error } = await sb.from('seb_trusted').select('*').order('added_at').then(r => r, e => ({ error: e }));
+    if (error) { body.innerHTML = '<div class="result bad">' + esc(errText(error)) + '</div>'; return; }
+    body.innerHTML = '<p class="small">Эталон — ключ настроек нашего файла контрольной, снятый с вашего Safe Exam Browser. Пока эталон есть, в контрольную «только в Safe Exam Browser» ' +
+      'войдёт только SEB, открытый с этим файлом, — SEB со своими настройками (например, с открытым интернетом) не войдёт. Поменяли файл контрольной — запомните эталон заново.</p>' +
+      (data.length ? '<table class="grade"><tr><th>Ключ</th><th>Кто и когда</th><th></th></tr>' + data.map(x => '<tr><td><code>' + esc(x.hash.slice(0, 12)) + '…</code></td><td>' +
+        esc(x.added_by || '') + ', ' + fmtDate(x.added_at) + '</td><td></td></tr>').join('') + '</table>'
+        : '<p><b>Эталона нет</b> — в контрольную «только в Safe Exam Browser» пускает любой SEB.</p>');
+    if (!isTeacher()) return;
+    const trs = body.querySelectorAll('tr');
+    data.forEach((x, i) => trs[i + 1].lastChild.appendChild(linkBtn('Забыть', async () => {
+      const { error } = await sb.rpc('seb_untrust', { p_hash: x.hash }).then(r => r, e => ({ error: e }));
+      if (error) return toast(errText(error));
+      draw();
+    })));
+    if (inSEB()) body.appendChild(pbtn('Запомнить этот Safe Exam Browser как эталон', async () => {
+      const info = await sebInfo();
+      if (!info.hash) return toast('Safe Exam Browser не сообщил ключ настроек — нужна версия 3.0 или новее');
+      const { error } = await sb.rpc('seb_trust', { p_seb: info, p_note: navigator.userAgent.slice(0, 120) }).then(r => r, e => ({ error: e }));
+      if (error) return toast(errText(error));
+      toast('Эталон Safe Exam Browser сохранён'); draw();
+    }, true));
+    else body.appendChild(el('p', { class: 'small' }, 'Чтобы задать эталон, на своём ноутбуке: ' + sebLinks() + '. Войдите в курс внутри SEB, откройте «Панель» → «Контрольная» и нажмите здесь «Запомнить».'));
+  };
+  d.addEventListener('toggle', () => { if (d.open && !body.childNodes.length) draw(); });
+}
 function examForm(box, g) {
   const mods = ctrlModules(), day = Date.now() - DAY;
   // по умолчанию — модуль с ближайшей парой (сегодня или позже), иначе последний
@@ -2809,9 +2854,9 @@ function examForm(box, g) {
     '<div class="filters"><label>Модуль <select class="exM">' + mods.map(M => '<option value="' + M.sectionId + '"' + (M === next ? ' selected' : '') + '>' + esc(modName(M.sectionId)) + '</option>').join('') + '</select></label>' +
     '<label>Длительность, мин <input type="number" class="exT" min="5" max="600" value="90"></label></div>' +
     '<div class="filters"><label class="chk"><input type="checkbox" class="exNet"> только из сети аудитории</label><label>Сети <input type="text" class="exNets" placeholder="203.0.113.7 или 10.5.0.0/16" size="28"></label></div>' +
-    '<div class="filters"><label class="chk"><input type="checkbox" class="exSeb"> только в Safe Exam Browser</label><label>Config Key <input type="text" class="exKey" placeholder="необязательно" size="28"></label></div>' +
+    '<div class="filters"><label class="chk"><input type="checkbox" class="exSeb" checked> только в Safe Exam Browser</label><label>Config Key <input type="text" class="exKey" placeholder="необязательно" size="28"></label></div>' +
     '<p class="small">Сеть: подключитесь к Wi-Fi аудитории и нажмите «Мой адрес» — сайт подставит адрес, с которого вуз выходит в интернет. Safe Exam Browser: студенты заранее ставят его и открывают ' +
-    '<a href="' + SEB_FILE + '" download>файл контрольной</a>; в нём открыт только сайт курса. Config Key (из SEB Config Tool) — чтобы принимать только наш файл настроек.</p>');
+    '<a href="' + SEB_FILE + '" download>файл контрольной</a>; в нём открыт только сайт курса. Чтобы пускать только наш файл настроек, задайте эталон SEB (блок выше) или вставьте Config Key из SEB Config Tool. Пока у группы идёт контрольная, у студентов закрыты «Инструменты» и запуск кода на сайте.</p>');
   const ipBtn = pbtn('Мой адрес', async () => {
     const { data, error } = await sb.rpc('my_ip').then(r => r, e => ({ error: e }));
     if (error || !data) return toast(error ? errText(error) : 'Сервер не видит ваш адрес');
@@ -2865,7 +2910,7 @@ function examLive(box, td, g, ex) {
     const t0 = ex.starts_at, subs = su.data.filter(s => s.created_at >= t0);
     const rows = students.map(x => {
       const uid = x.p && x.p.user_id, a = at.data.find(r => r.user_id === uid), e = ev.data.filter(r => r.user_id === uid);
-      const away = e.filter(r => r.kind === 'focus' || r.kind === 'visible'), awaySec = e.filter(r => r.kind === 'focus').reduce((s, r) => s + ((r.detail && r.detail.sec) || 0), 0);
+      const away = e.filter(r => r.kind === 'focus' || r.kind === 'visible'), awaySec = e.filter(r => r.kind === 'focus').reduce((s, r) => s + (Math.max(0, Number(r.detail && r.detail.sec)) || 0), 0);
       const best = {}; subs.filter(s => s.user_id === uid).forEach(s => { best[s.step_id] = Math.max(best[s.step_id] || 0, s.prelim_score || 0); });
       const pts = steps.reduce((s0, s) => s0 + s.cost * (best[s.id] || 0), 0);
       return { x, a, e, away: away.length, awaySec, fsExit: e.filter(r => r.kind === 'fullscreen_exit').length, blocked: e.filter(r => r.kind === 'paste_blocked').length,
@@ -3360,14 +3405,34 @@ function report() {
    подбора ключа Виженера) здесь нет: это студенты программируют сами в ЛР. Во время контрольной раздел закрыт. */
 const TOOL_TABS = [['', 'Python'], ['num', 'Числа'], ['cipher', 'Шифры'], ['bytes', 'Байты и XOR'], ['gf', 'GF(2⁸)']];
 const TOOL = {};
-const examNow = () => !!(EXAM && EXAM.status === 'active' && Date.parse(EXAM.ends_at) > Date.now());
+const examNow = () => EXAM_LIVE || !!(EXAM && EXAM.status === 'active' && Date.parse(EXAM.ends_at) > Date.now());
+// запуск Python на сайте во время контрольной закрыт везде, кроме уроков самой контрольной: иначе любая задача с кодом —
+// калькулятор для личных чисел КТ. Перед запуском состояние сверяется с сервером (my_exams, кеш 20 с)
+async function pyBlocked() {
+  if (SERVER && ME && ME.role === 'student') await myExams();
+  if (!examNow() || (CUR && isCtrlLesson(CUR))) return false;
+  toast('Идёт контрольная: запуск кода на сайте закрыт до её конца');
+  return true;
+}
+// студент на странице инструментов или урока, а контрольная началась или закончилась — перерисовать (раз в 30 с)
+function examWatch() {
+  if (!SERVER || !ME || ME.role !== 'student') return;
+  setInterval(async () => {
+    if (document.hidden || (CUR && isCtrlLesson(CUR))) return;
+    const was = examNow();
+    await myExams();
+    if (examNow() !== was && (onTools() || CUR)) route();
+  }, 30000);
+}
 const onTools = () => /^#tools(\/|$)/.test(location.hash);
-function tools(sub, item) {
+async function tools(sub, item) {
   CUR = null; STEP = 0; drawSide(); paintStatus();
-  const m = $('#main'); m.className = ''; m.innerHTML = '';
+  const m = $('#main'); m.className = ''; m.innerHTML = '<div class="loading">Загрузка…</div>';
+  if (SERVER && ME && ME.role === 'student') { await myExams(); if (!onTools()) return; }
+  m.innerHTML = '';
   m.appendChild(el('h1', { class: 'lesson-h' }, 'Инструменты'));
   if (examNow()) {
-    m.appendChild(el('section', { class: 'pblock examgate' }, '<h2>Во время контрольной инструменты закрыты</h2><p>Песочница и разборы по шагам откроются, когда контрольная закончится. Свой код в задаче контрольной можно запустить кнопкой «Запустить».</p>'));
+    m.appendChild(el('section', { class: 'pblock examgate' }, '<h2>Во время контрольной инструменты закрыты</h2><p>Пока у вашей группы идёт контрольная, песочница, разборы по шагам и запуск кода в уроках не работают. Они откроются, когда контрольная закончится.</p>'));
     return;
   }
   sub = TOOL[sub || ''] ? sub || '' : '';
@@ -3449,6 +3514,8 @@ function toolSet(m, tab, list, item) {
   const vis = () => { const v = vals(); labs.forEach(([F, l]) => { l.hidden = !!F.when && !F.when(v); }); };
   const out = el('div', { class: 'tout', 'aria-live': 'polite' });
   const go = () => {
+    if (examNow()) return tools();
+    myExams().then(() => { if (examNow() && onTools()) tools(); });
     try {
       const r = cur.run(vals());
       if (r.head) stepTable(out, r); else out.innerHTML = r.html;
@@ -3845,7 +3912,7 @@ TOOL[''] = m => {
   const out = el('div', { class: 'result', hidden: '' }), stat = el('div', { class: 'pystat' }); paintPy(stat);
   const run = el('button', { class: 'primary' }, 'Запустить');
   const go = async () => {
-    if (run.disabled) return;
+    if (run.disabled || await pyBlocked()) return;
     run.disabled = true; run.textContent = 'Выполняется…';
     try {
       const code = ed.get();
@@ -3893,7 +3960,7 @@ function menu() {
     if (ME) item('Мой кабинет', () => { location.hash = 'me'; });
     item('Справка', helpModal);
     item('Как обрабатываются данные', privacyModal);
-    if (ME) item('Выйти (' + ME.email + ')', async () => { await sb.auth.signOut(); location.hash = ''; location.reload(); });
+    if (ME) item('Выйти (' + esc(ME.email) + ')', async () => { await sb.auth.signOut(); forgetLocal(); location.hash = ''; location.reload(); });
   } else {
     item('Сменить имя', () => askName(true));
     item('Сохранить прогресс в файл', () => download('МОБАК_прогресс_' + S.name.replace(/[^\p{L}\p{N}]+/gu, '_') + '.json', JSON.stringify(S)));
@@ -3970,6 +4037,7 @@ $('#moreBtn').onclick = menu;
   loadLocal(KEY + ':' + ME.user_id);
   try { await loadPrefs(); } catch (e) {}
   examResume().catch(() => {});
+  examWatch();
   try { if (localStorage.getItem(KEY + '-consent')) sb.rpc('accept_terms').then(() => {}); } catch (e) {}
   S.uid = ME.user_id; S.name = ME.full_name || ME.email;   // uid — seed личных данных (общий с перепроверкой)
   const hb = isStaff() ? el('button', { class: 'primary', on: { click: () => { location.hash = 'teacher'; } } }, 'Панель')
