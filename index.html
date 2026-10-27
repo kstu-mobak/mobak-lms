@@ -2859,6 +2859,7 @@ async function examPage(m, td) {
     m.appendChild(el('div', { class: 'filters' })).appendChild(mode);
   }
   sebBlock(m);
+  readyBlock(m, td, g);
   const box = el('div'); m.appendChild(box);
   const { data: exams, error } = await sb.from('exams').select('*').eq('group_name', g).order('starts_at', { ascending: false }).limit(30);
   if (error) { box.innerHTML = '<div class="result bad">' + esc(errText(error)) + '</div>'; return; }
@@ -2906,6 +2907,33 @@ function sebBlock(m) {
       toast('Эталон Safe Exam Browser сохранён'); draw();
     }, true));
     else body.appendChild(el('p', { class: 'small' }, 'Чтобы задать эталон, на своём ноутбуке: ' + sebLinks() + '. Войдите в курс внутри SEB, откройте «Панель» → «Контрольная» и нажмите здесь «Запомнить».'));
+  };
+  d.addEventListener('toggle', () => { if (d.open && !body.childNodes.length) draw(); });
+}
+// готовность группы к контрольной: кто вошёл, задал пароль, открывал сайт в Safe Exam Browser, прошёл пробную КТ
+function readyBlock(m, td, g) {
+  const d = el('details', { class: 'pblock' }, '<summary><b>Готовность группы</b> — кто вошёл, задал пароль, проверил Safe Exam Browser, прошёл пробную КТ</summary>');
+  const body = el('div');
+  d.appendChild(body); m.appendChild(d);
+  const draw = async () => {
+    const [rd, tr] = await Promise.all([sb.from('exam_ready').select('*').limit(10000), sb.from('seb_trusted').select('hash')].map(q => q.then(r => r, e => ({ error: e }))));
+    if (rd.error) { body.innerHTML = '<div class="result bad">' + esc(errText(rd.error)) + '</div>'; return; }
+    const by = Object.fromEntries((rd.data || []).map(x => [x.user_id, x])), trusted = new Set(((tr && tr.data) || []).map(x => x.hash));
+    const kt = KT_LESSONS().map(l => l.mod.sectionId), students = inGroup(studentRows(td), td, g);
+    let nIn = 0, nPw = 0, nSeb = 0, nKt = 0;
+    const rows = students.map(x => {
+      const uid = x.p && x.p.user_id, r = (uid && by[uid]) || {}, pr = r.practice || {};
+      const best = kt.map(sec => pr[sec]).filter(Boolean).sort((a, b) => b.at < a.at ? -1 : 1)[0];
+      if (uid) nIn++; if (r.password_at) nPw++; if (r.seb_at) nSeb++; if (best) nKt++;
+      const seb = !r.seb_at ? '—' : (!trusted.size ? 'да' : trusted.has(r.seb_hash) ? 'да, наш файл' : '<span class="badge bad">другие настройки</span>') + ' <span class="small">' + fmtDate(r.seb_at) + '</span>';
+      return '<tr><td>' + esc(x.r.full_name) + '</td><td>' + (uid ? 'да' : '<span class="badge bad">не входил</span>') + '</td><td>' + (r.password_at ? 'да' : '—') + '</td><td>' + seb + '</td><td>' +
+        (best ? fmt(best.best) + ' из ' + fmt(best.max) + ' <span class="small">(' + best.runs + ' ' + plural(best.runs, 'раз', 'раза', 'раз') + ')</span>' : '—') + '</td></tr>';
+    });
+    body.innerHTML = '<p class="small">В группе ' + students.length + ' · вошли на сайт ' + nIn + ' · пароль ' + nPw + ' · Safe Exam Browser ' + nSeb + ' · пробная КТ ' + nKt + '. ' +
+      'Здесь только записавшиеся: кто ещё не прошёл по ссылке записи, в списке не появится. Отметку SEB ставит «Мой кабинет», открытый в Safe Exam Browser; пробная КТ — лучший результат (тренировка, в баллы не идёт).</p>';
+    const t = el('table', { class: 'grade ready' });
+    t.innerHTML = '<tr><th>Студент</th><th>На сайте</th><th>Пароль</th><th>Safe Exam Browser</th><th>Пробная КТ</th></tr>' + rows.join('');
+    body.appendChild(el('div', { style: 'overflow-x:auto' })).appendChild(t);
   };
   d.addEventListener('toggle', () => { if (d.open && !body.childNodes.length) draw(); });
 }
@@ -3313,6 +3341,7 @@ async function cabinet() {
     '<tr><td>Адрес сети</td><td class="rIp">…</td></tr><tr><td>Устройство</td><td>' + esc(DEVICE.slice(0, 8)) + '</td></tr>';
   ready.appendChild(el('div', { style: 'overflow-x:auto' })).appendChild(rt);
   ready.appendChild(el('p', { class: 'small' }, 'Потренироваться: <a href="#tools/kt">пробная контрольная</a> — те же задачи с другими числами, с таймером, без баллов.'));
+  if (inSEB()) sebInfo().then(info => sb.rpc('ready_seb', { p_seb: info })).then(() => {}, () => {});   // отметка для «Готовности группы»
   ready.addEventListener('toggle', () => { if (ready.open) sb.rpc('my_ip').then(r => { $('.rIp', rt).textContent = (r && r.data) || 'не определён'; }, () => { $('.rIp', rt).textContent = 'не определён'; }); }, { once: true });
   m.appendChild(ready);
 
@@ -3990,7 +4019,13 @@ async function ktPage(box, l) {
   const tasks = steps.filter(s => s.t === 'dataset'), max = tasks.reduce((a, s) => a + s.cost, 0);
   const name = l.title.replace(/\..*$/, '');
   let st = ktLoad(l);
-  const finish = () => { if (st && !st.end) { st.end = Date.now(); ktSave(l, st); } draw(); };
+  const finish = () => {
+    if (st && !st.end) {
+      st.end = Date.now(); ktSave(l, st);
+      if (SERVER && sb) sb.rpc('ready_practice', { p_section: l.mod.sectionId, p_score: ktTotal(st, tasks), p_max: max }).then(() => {}, () => {});   // преподавателю — «Готовность группы»
+    }
+    draw();
+  };
   const draw = () => {
     if (!document.body.contains(box)) { clearInterval(KT_TICK); KT_TICK = null; ktBar(null); return; }
     box.innerHTML = '';
@@ -4006,7 +4041,7 @@ async function ktPage(box, l) {
       '<ul class="small"><li>Общее время на всю работу — как на паре (35–40 минут); можно и без ограничения. Числа видны сразу под условием.</li>' +
       '<li>На задачу — ' + EXAM_TRIES + ' попытки, как на настоящей КТ; в балл идёт лучшая.</li>' +
       '<li>Решайте на бумаге, без калькулятора: на паре инструменты и Python на сайте будут закрыты.</li>' +
-      '<li>После — разбор: ваш ответ, верный ответ и ссылка на разбор задачи по шагам.</li></ul>' +
+      '<li>После — разбор: ваш ответ, верный ответ и ссылка на разбор задачи по шагам. Преподаватель видит только, что вы прошли пробную КТ, и лучший результат — в баллы он не идёт.</li></ul>' +
       '<div class="filters"><label>Время <select class="ktMin"><option value="40">40 минут</option><option value="60">60 минут</option><option value="90">90 минут</option><option value="0">без ограничения</option></select></label></div>');
     sec.appendChild(pbtn('Начать пробную КТ', () => {
       st = { v: ((st && st.v) || 0) + 1, min: +$('.ktMin', sec).value, start: Date.now(), tasks: {} };
