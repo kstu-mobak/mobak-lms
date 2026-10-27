@@ -318,6 +318,7 @@ table.grade.dl .src, table.grade.hist td { white-space: normal; }
 .ptabs > button { margin-left: auto; }
 @media (max-width: 600px) {
   .menu-btn, #moreBtn { min-height: 38px; }
+  .tool input, .tool select, .sbin + .actions select { min-height: 36px; }
   .ptabs > button, button.link { min-height: 36px; }
   :root[data-design] body .side a.ls.ls { padding-top: 9px; padding-bottom: 9px; }   /* сильнее правил оформлений ниже */
   :root[data-design="key"] .stepbar a { position: relative; }
@@ -368,6 +369,33 @@ details.arch > summary { cursor: pointer; color: var(--muted); margin: 6px 0; }
 .pblock { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 14px 16px; margin: 12px 0; }
 .pblock > summary { cursor: pointer; }
 .pblock h2 { margin: 0 0 6px; font: 700 19px/1.3 var(--display); }
+/* инструменты: песочница и разборы по шагам */
+.tsub { display: flex; flex-wrap: wrap; gap: 6px; margin: 14px 0 4px; }
+.tool [hidden], .tout [hidden] { display: none !important; }   /* .actions и .filters label задают display — hidden иначе не скрывает */
+.tsub button { padding: 6px 12px; font-size: 14px; border-radius: 99px; min-height: 34px; }
+.tsub button.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.tool input, .tool textarea { font-family: var(--mono); }
+.filters label.wide { flex: 1 1 100%; flex-direction: column; align-items: stretch; gap: 4px; }
+.filters label.wide textarea { width: 100%; font-size: 14px; }
+.filters label.chk, .actions label.chk { display: inline-flex; gap: 6px; align-items: center; }
+.tw { overflow-x: auto; margin: 12px 0 0; max-width: 100%; }
+table.steps { border-collapse: collapse; font: 14px/1.45 var(--mono); background: var(--panel); border: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+table.steps th { font: 700 12.5px/1.3 var(--ui, var(--font)); color: var(--muted); background: var(--panel2); text-align: right; padding: 7px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+table.steps td { padding: 5px 10px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+table.steps .l { text-align: left; }
+table.steps tr.hl td { background: var(--ok-soft); font-weight: 700; }
+table.steps .one { color: var(--ok); font-weight: 800; }
+.tout .result { white-space: normal; }
+.tout .result code { word-break: break-all; }
+pre.cout { white-space: pre-wrap; word-break: break-word; }
+.fqgrid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px 24px; margin-top: 12px; }
+.fq { display: grid; grid-template-columns: 1.3em minmax(0, 1fr) auto; gap: 8px; align-items: center; font: 13.5px/1.7 var(--mono); }
+.fq .bar { height: 10px; background: var(--panel2); border-radius: 99px; overflow: hidden; }
+.fq .bar i { display: block; height: 100%; background: var(--accent); }
+.fqgrid .lang .bar i { background: var(--faint); }
+.sbin { display: block; margin-top: 12px; }
+.sbin textarea { display: block; width: 100%; margin-top: 4px; font-family: var(--mono); font-size: 14px; }
+button.link.try { display: block; margin: -6px 0 10px auto; font-size: 13.5px; }
 .tblock { margin-top: 22px; }
 .gwrap { overflow-x: auto; max-width: 100%; }
 table.grade.sheet td:first-child, table.grade.sheet th:first-child { position: sticky; left: 0; background: var(--panel); z-index: 1; }
@@ -929,7 +957,7 @@ const totalGot = () => Object.values(STEPMETA).reduce((a, s) => a + got(s), 0);
 
 /* ---------- Python в браузере (Pyodide в Web Worker) ---------- */
 const RUNNER = String.raw`
-import sys, io, builtins, math, random, types, json, marshal, base64
+import sys, io, builtins, math, random, types, json, marshal, base64, ast
 
 def _load(src):
     m = types.ModuleType("checker")
@@ -1021,7 +1049,7 @@ def _restore(snap):
     for k in [k for k in sys.modules if k not in mods and not k.split(".")[0] in _KEEP]:
         del sys.modules[k]
 
-def _run(header, code, footer, stdin):
+def _run(header, code, footer, stdin, tree=None, extra=None):
     hl = header.count("\n") + 1
     cl = code.count("\n") + 1
     script = "\n".join([header, code, footer])
@@ -1031,7 +1059,9 @@ def _run(header, code, footer, stdin):
     sys.stdin, sys.stdout, sys.stderr = io.StringIO(stdin), out, io.StringIO()
     err = ""
     try:
-        exec(compile(script, "solution.py", "exec"), {"__name__": "__main__", "__builtins__": builtins})
+        g = {"__name__": "__main__", "__builtins__": builtins}
+        g.update(extra or {})
+        exec(compile(script if tree is None else tree, "solution.py", "exec"), g)
     except SystemExit:
         pass
     except BaseException as e:
@@ -1056,6 +1086,24 @@ def _run(header, code, footer, stdin):
 
 def code_run(header, code, footer, stdin):
     out, err = _run(header, code, footer, stdin)
+    return json.dumps({"out": out[:20000], "err": err})
+
+def _show(v):
+    if v is not None:
+        print(repr(v))
+
+# песочница: как в интерактивном Python, значение выражения верхнего уровня (кроме print(...)) печатается
+def sbx_run(code, stdin):
+    try:
+        tree = ast.parse(chr(10).join(["", code, ""]), "solution.py")
+    except SyntaxError:
+        return code_run("", code, "", stdin)
+    for i, st in enumerate(tree.body):
+        v = st.value if isinstance(st, ast.Expr) else None
+        if v is not None and not (isinstance(v, ast.Call) and isinstance(v.func, ast.Name) and v.func.id == "print"):
+            tree.body[i] = ast.copy_location(ast.Expr(ast.Call(ast.Name("_mobak_show", ast.Load()), [v], [])), st)
+    ast.fix_missing_locations(tree)
+    out, err = _run("", code, "", stdin, tree, {"_mobak_show": _show})
     return json.dumps({"out": out[:20000], "err": err})
 
 def code_check(src, header, footer, code, samples):
@@ -1124,7 +1172,7 @@ async function py(op, args, timeout = 20000, imports = '') {
   await pyStart();
   return new Promise((res, rej) => {
     const id = ++PY.seq;
-    if (imports && /^\s*(import|from)\s+(cryptography|numpy)\b/m.test(imports)) timeout += 120000;  // первая загрузка пакетов
+    if (imports && /^\s*(import|from)\s+(cryptography|numpy|sympy|pandas|scipy|networkx|Crypto)\b/m.test(imports)) timeout += 120000;  // первая загрузка пакетов
     const timer = setTimeout(() => {
       delete PY.pend[id]; PY.w.terminate(); PY.ready = null; pyStatus('idle');
       Object.values(PY.pend).forEach(p => p.rej(new Error('restart'))); PY.pend = {};
@@ -1454,7 +1502,7 @@ function refreshChrome(s) {
 }
 function paintStatus() {
   const st = $('#status'); if (!st || !CAT) return;
-  const where = CUR ? esc(CUR.mod.label) + ' › ' + esc(CUR.title) + (oneStep() && STEP ? ' › шаг ' + STEP + ' из ' + CUR.steps.length : '') : 'Начало';
+  const where = CUR ? esc(CUR.mod.label) + ' › ' + esc(CUR.title) + (oneStep() && STEP ? ' › шаг ' + STEP + ' из ' + CUR.steps.length : '') : onTools() ? 'Инструменты' : 'Начало';
   st.innerHTML = '<span class="pystat"></span><span class="hide-sm">' + where + '</span><span class="grow"></span><span><b>' + fmt(totalGot()) + '</b>/' + CAT.total + ' баллов</span>' + (S.name ? '<span class="hide-sm">' + esc(S.name) + '</span>' : '');
   paintPy($('.pystat', st));
 }
@@ -1472,7 +1520,8 @@ const wdir = M => M.n === 15 ? 'итог' : 'нед-' + String(M.n).padStart(2, 
 
 function drawSide() {
   const side = $('#side'); side.innerHTML = '';
-  side.appendChild(el('a', { class: 'ls home' + (CUR ? '' : ' cur'), href: '#' }, '<span>Обзор курса</span>'));
+  side.appendChild(el('a', { class: 'ls home' + (CUR || onTools() ? '' : ' cur'), href: '#' }, '<span>Обзор курса</span>'));
+  side.appendChild(el('a', { class: 'ls home' + (onTools() ? ' cur' : ''), href: '#tools' }, '<span>Инструменты</span>'));
   CAT.modules.forEach(M => {
     const ms = modStat(M), open = OPEN.has(M.n) || (CUR && CUR.mod === M);
     const box = el('div', { class: 'wk' + (open ? '' : ' closed') });
@@ -1617,7 +1666,9 @@ async function lesson(l, want) {
     const card = el('section', { class: 'step', id: 'st' + s.id, 'data-t': s.t, 'data-n': meta.num });
     const h = el('div', { class: 'step-h' }, '<span class="num">' + meta.num + '</span><span class="kind"><span class="n">Шаг ' + meta.num + '</span> <span class="t">' + TYPE[s.t] + '</span></span>');
     if (isTask(s)) h.appendChild(el('span', { id: 'badge-' + s.id, class: 'badge ' + stCls(s.id) }, badgeText(s)));
-    card.append(h, el('div', { class: 'body' }, s.html));
+    const body = el('div', { class: 'body' }, s.html);
+    card.append(h, body);
+    if (s.t === 'text') tryButtons(body, l);
     if (R[s.t]) R[s.t](s, card);
     if (s.t === 'code') {
       // условие | код и проверка: на широком экране — рядом («Ключ», «Рабочее место»), на телефоне — вкладки
@@ -1689,6 +1740,7 @@ function route() {
   const k = location.hash.slice(1), [lk, sn] = k.split('/'), l = LESSONS.find(x => x.key === lk);
   if (k.startsWith('teacher')) { CUR = null; STEP = 0; $('#main').className = ''; return isStaff() ? teacher(k.split('/')[1]) : home(); }
   if (k === 'me') { STEP = 0; return ME ? cabinet() : home(); }
+  if (k === 'tools' || k.startsWith('tools/')) { const p = k.split('/'); return tools(p[1], p[2]); }
   if (l && CUR === l && $('#main section.step') && sn) return goStep(+sn);
   l ? lesson(l, sn ? +sn : 0) : home();
 }
@@ -3238,6 +3290,7 @@ function helpModal() {
     '<p><b>Сроки.</b> Баллы идут только за сдачи до срока вашей группы; контрольные — только на паре. Сроки, продления и ближайший срок — в кабинете.</p>' +
     '<p><b>Устная проверка.</b> Преподаватель может попросить объяснить свой код. Если не получилось — работа «не допущена», её баллы не идут в рейтинг до пересдачи.</p>' +
     '<p><b>Нет интернета.</b> Ответ сохранится и уйдёт на сервер, когда связь появится.</p>') +
+    '<p><b>Инструменты</b> (в меню слева). Песочница Python без установки и разборы по шагам в обозначениях уроков: Евклид, обратный, степень, КТО, φ, Z_p*, Диффи — Хеллман, шифры, частоты, байты и XOR, GF(2⁸). Код из теории открывается в песочнице кнопкой «▶ В песочнице». На контрольной инструменты закрыты.</p>' +
     '<p class="small">Вопросы по курсу — преподавателю вашей группы.</p><div class="actions"><button class="primary" id="hpX">Закрыть</button></div></div>';
   document.body.appendChild(md);
   $('#hpX', md).onclick = () => md.remove();
@@ -3294,6 +3347,535 @@ function report() {
   md.addEventListener('click', e => { if (e.target === md) md.remove(); });
 }
 
+/* ---------- инструменты: песочница Python и разборы по шагам ----------
+   Всё считается в браузере, на сервер ничего не уходит. Обозначения — как в уроках: расширенный Евклид таблицей r, q, x, y
+   (нед. 3), степень со старшего бита (нед. 5), КТО через Mᵢ и yᵢ (нед. 6), xtime (нед. 8). Взлома (перебора ключей,
+   подбора ключа Виженера) здесь нет: это студенты программируют сами в ЛР. Во время контрольной раздел закрыт. */
+const TOOL_TABS = [['', 'Python'], ['num', 'Числа'], ['cipher', 'Шифры'], ['bytes', 'Байты и XOR'], ['gf', 'GF(2⁸)']];
+const TOOL = {};
+const examNow = () => !!(EXAM && EXAM.status === 'active' && Date.parse(EXAM.ends_at) > Date.now());
+const onTools = () => /^#tools(\/|$)/.test(location.hash);
+function tools(sub, item) {
+  CUR = null; STEP = 0; drawSide(); paintStatus();
+  const m = $('#main'); m.className = ''; m.innerHTML = '';
+  m.appendChild(el('h1', { class: 'lesson-h' }, 'Инструменты'));
+  if (examNow()) {
+    m.appendChild(el('section', { class: 'pblock examgate' }, '<h2>Во время контрольной инструменты закрыты</h2><p>Песочница и разборы по шагам откроются, когда контрольная закончится. Свой код в задаче контрольной можно запустить кнопкой «Запустить».</p>'));
+    return;
+  }
+  sub = TOOL[sub || ''] ? sub || '' : '';
+  const t = el('nav', { class: 'ptabs', 'aria-label': 'Инструменты' });
+  TOOL_TABS.forEach(([k, name]) => {
+    const a = el('a', { href: '#tools' + (k ? '/' + k : '') }, name);
+    if (k === sub) { a.className = 'on'; a.setAttribute('aria-current', 'page'); }
+    t.appendChild(a);
+  });
+  m.appendChild(t);
+  TOOL[sub](m, item);
+  window.scrollTo(0, 0);
+}
+
+// числа: BigInt, вывод с настоящим минусом
+const fb = v => v < 0n ? '−' + (-v) : String(v);
+const par = v => v < 0n ? '(' + fb(v) + ')' : fb(v);
+const SUBD = '₀₁₂₃₄₅₆₇₈₉', SUPD = '⁰¹²³⁴⁵⁶⁷⁸⁹';
+const subN = n => String(n).replace(/\d/g, d => SUBD[d]);
+const supN = n => String(n).replace(/\d/g, d => SUPD[d]);
+const ri = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
+const pick = a => a[Math.floor(Math.random() * a.length)];
+const gcdN = (a, b) => { while (b) [a, b] = [b, a % b]; return a; };
+const isPrimeN = n => { if (n < 2) return false; for (let d = 2; d * d <= n; d++) if (n % d === 0) return false; return true; };
+function big(s, name, min) {
+  const t = String(s).trim().replace(/[\s_]/g, '').replace(/^−/, '-');
+  if (!/^-?\d+$/.test(t)) throw new Error(name + ': нужно целое число');
+  if (t.length > 700) throw new Error(name + ': слишком длинное число');
+  const v = BigInt(t);
+  if (min !== undefined && v < BigInt(min)) throw new Error(name + ' должно быть не меньше ' + min);
+  return v;
+}
+const bigList = (s, name) => { const p = String(s).split(/[\s,;]+/).filter(Boolean); if (!p.length) throw new Error(name + ': введите числа через запятую'); return p.map(x => big(x, name)); };
+const bmod = (a, n) => (a % n + n) % n;
+const bgcd = (a, b) => { a = a < 0n ? -a : a; b = b < 0n ? -b : b; while (b) [a, b] = [b, a % b]; return a; };
+function bpow(a, e, n) { let r = 1n % n; a = bmod(a, n); while (e > 0n) { if (e & 1n) r = r * a % n; a = a * a % n; e >>= 1n; } return r; }
+// обратный по модулю; вызывается, когда НОД(a, n) = 1 уже проверен
+function binv(a, n) { let [r0, r1, x0, x1] = [bmod(a, n), n, 1n, 0n]; while (r1) { const q = r0 / r1; [r0, r1] = [r1, r0 - q * r1]; [x0, x1] = [x1, x0 - q * x1]; } return bmod(x0, n); }
+
+// таблица разбора. «По строке»: строки после given открываются по одной — сначала посчитайте сами, потом проверьте
+const STEPS_KEY = KEY + '-tools-steps';
+const stepMode = () => { try { return localStorage.getItem(STEPS_KEY) === '1'; } catch (e) { return false; } };
+function stepTable(out, r) {
+  out.innerHTML = '';
+  if (r.note) out.appendChild(el('p', { class: 'small' }, r.note));
+  const L = i => r.left && r.left.includes(i) ? ' class="l"' : '';
+  const tb = el('table', { class: 'steps' });
+  tb.innerHTML = '<thead><tr>' + r.head.map((h, i) => '<th' + L(i) + '>' + h + '</th>').join('') + '</tr></thead><tbody>' +
+    r.rows.map((row, k) => '<tr' + (r.hl && r.hl.includes(k) ? ' class="hl"' : '') + '>' + row.map((c, i) => '<td' + L(i) + '>' + c + '</td>').join('') + '</tr>').join('') + '</tbody>';
+  const wrap = el('div', { class: 'tw' }); wrap.appendChild(tb);
+  const fin = el('div', { class: 'result ' + (r.bad ? 'bad' : 'ok') }, r.tail);
+  const trs = [...tb.tBodies[0].rows];
+  let shown = stepMode() && r.steps !== false ? Math.min(r.given || 0, trs.length) : trs.length;
+  const acts = el('div', { class: 'actions' }), cnt = el('span', { class: 'small' });
+  const paint = () => {
+    trs.forEach((tr, i) => { tr.hidden = i >= shown; });
+    const done = shown >= trs.length;
+    fin.hidden = !done; acts.hidden = done;
+    cnt.textContent = done ? '' : 'Открыто строк: ' + shown + ' из ' + trs.length + '. Посчитайте следующую сами, потом откройте.';
+  };
+  acts.append(pbtn('Следующая строка', () => { shown++; paint(); }, true), pbtn('Показать всё', () => { shown = trs.length; paint(); }), cnt);
+  out.append(wrap, acts, fin);
+  paint();
+}
+
+// набор инструментов вкладки: выбор, поля, «Посчитать», «Случайный пример»; пример из урока считается сразу
+function toolSet(m, tab, list, item) {
+  const cur = list.find(t => t.id === item) || list[0];
+  if (list.length > 1) {
+    const bar = el('div', { class: 'tsub' });
+    list.forEach(t => bar.appendChild(el('button', { class: t === cur ? 'on' : '', 'aria-pressed': String(t === cur), on: { click: () => {
+      history.replaceState(null, '', '#tools/' + tab + '/' + t.id); tools(tab, t.id);
+    } } }, t.name)));
+    m.appendChild(bar);
+  }
+  const box = el('section', { class: 'pblock tool' }, '<h2>' + cur.title + '</h2><p class="small">' + cur.about + '</p>');
+  const f = el('div', { class: 'filters' }), inp = {}, labs = [];
+  const vals = () => { const v = {}; for (const k in inp) v[k] = inp[k].value; return v; };
+  const vis = () => { const v = vals(); labs.forEach(([F, l]) => { l.hidden = !!F.when && !F.when(v); }); };
+  const out = el('div', { class: 'tout', 'aria-live': 'polite' });
+  const go = () => {
+    try {
+      const r = cur.run(vals());
+      if (r.head) stepTable(out, r); else out.innerHTML = r.html;
+      if (r.after) r.after(out);
+    } catch (e) { out.innerHTML = '<div class="result bad">' + esc(e.message) + '</div>'; }
+  };
+  cur.fields.forEach(F => {
+    const l = el('label', { class: F.area ? 'wide' : '' }, F.label + ' ');
+    let i;
+    if (F.options) { i = el('select', F.label ? {} : { 'aria-label': 'формат' }); F.options.forEach(([v, t]) => i.appendChild(el('option', { value: v }, t))); i.addEventListener('change', () => { vis(); go(); }); }
+    else if (F.area) i = el('textarea', { rows: 3, spellcheck: 'false' });
+    else { i = el('input', { autocomplete: 'off', spellcheck: 'false', size: F.size || 8 }); i.addEventListener('keydown', e => { if (e.key === 'Enter') go(); }); }
+    i.value = F.value; inp[F.name] = i; l.appendChild(i); f.appendChild(l); labs.push([F, l]);
+  });
+  const acts = el('div', { class: 'actions' });
+  acts.append(pbtn('Посчитать', go, true));
+  if (cur.rand) acts.append(pbtn('Случайный пример', () => { const v = cur.rand(); for (const k in v) inp[k].value = v[k]; vis(); go(); }));
+  if (cur.steps !== false) {
+    const sm = el('label', { class: 'small chk' }, '<input type="checkbox"> по строке: сначала считаю сам');
+    $('input', sm).checked = stepMode();
+    $('input', sm).addEventListener('change', e => { try { localStorage.setItem(STEPS_KEY, e.target.checked ? '1' : ''); } catch (x) {} go(); });
+    acts.append(sm);
+  }
+  box.append(f, acts, out); m.appendChild(box);
+  vis(); go();
+}
+
+/* --- Числа --- */
+// расширенный Евклид таблицей, как в уроке недели 3: новая строка = «две выше» − q × «выше» для r, x и y
+function egcdTable(a, b) {
+  const chk = (x, y, r) => { const p = a * x, q = b * y; return fb(p) + (q < 0n ? ' − ' + fb(-q) : ' + ' + fb(q)) + ' = ' + fb(r); };
+  const rows = [[fb(a), '—', '1', '0', fb(a)], [fb(b), '—', '0', '1', fb(b)]];
+  let [r0, r1, x0, x1, y0, y1] = [a, b, 1n, 0n, 0n, 1n];
+  while (r1) {
+    const q = r0 / r1, r = r0 - q * r1, x = x0 - q * x1, y = y0 - q * y1;
+    rows.push(r ? [fb(r), fb(q), fb(x), fb(y), chk(x, y, r)] : ['0', fb(q), '', '', 'стоп: остаток 0']);
+    [r0, r1, x0, x1, y0, y1] = [r1, r, x1, x, y1, y];
+  }
+  return { rows, g: r0, x: x0, y: y0, last: Math.max(rows.length - 2, 0) };
+}
+const NUM = [
+  { id: 'egcd', name: 'НОД и Безу', title: 'Расширенный алгоритм Евклида',
+    about: 'Таблица как в уроке недели 3: каждая строка — «две выше» минус q × «выше», одинаково для r, x и y; q — частное от деления r двух строк выше на r строки выше. Ответ — в строке с последним ненулевым остатком.',
+    fields: [{ name: 'a', label: 'a', value: '240' }, { name: 'b', label: 'b', value: '46' }],
+    rand: () => { const a = ri(100, 999); return { a, b: ri(10, a - 1) }; },
+    run: v => {
+      const a = big(v.a, 'a', 1), b = big(v.b, 'b', 1), t = egcdTable(a, b);
+      return { head: ['r', 'q', 'x', 'y', 'проверка ' + a + '·x + ' + b + '·y'], rows: t.rows, given: 2, hl: [t.last], left: [4],
+        tail: 'НОД(' + a + ', ' + b + ') = <b>' + t.g + '</b>, x = <b>' + fb(t.x) + '</b>, y = <b>' + fb(t.y) + '</b>: ' + a + '·' + par(t.x) + ' + ' + b + '·' + par(t.y) + ' = ' + t.g + '.' +
+          (t.g === 1n ? '<br>НОД = 1: числа взаимно просты, x mod ' + b + ' = ' + bmod(t.x, b) + ' — обратный к ' + a + ' по модулю ' + b + '.' : '') };
+    } },
+  { id: 'inv', name: 'Обратный по модулю', title: 'Обратный элемент a⁻¹ mod n',
+    about: 'Как mod_inverse в уроке недели 4: расширенный Евклид для (a mod n, n). Если НОД = 1, обратный — x mod n; иначе обратного нет.',
+    fields: [{ name: 'a', label: 'a', value: '17' }, { name: 'n', label: 'n', value: '3120' }],
+    rand: () => { const n = ri(20, 400); let a; do a = ri(2, n - 1); while (gcdN(a, n) !== 1); return { a, n }; },
+    run: v => {
+      const a = big(v.a, 'a'), n = big(v.n, 'n', 2), a0 = bmod(a, n);
+      if (!a0) throw new Error(fb(a) + ' делится на ' + n + ' — обратного нет');
+      const t = egcdTable(a0, n), ok = t.g === 1n, inv = bmod(t.x, n);
+      return { head: ['r', 'q', 'x', 'y', 'проверка ' + a0 + '·x + ' + n + '·y'], rows: t.rows, given: 2, hl: [t.last], left: [4], bad: !ok,
+        note: a0 !== a ? 'Сначала остаток: ' + fb(a) + ' mod ' + n + ' = ' + a0 + '.' : '',
+        tail: ok ? a0 + '·' + par(t.x) + ' + ' + n + '·' + par(t.y) + ' = 1, поэтому ' + fb(a) + '⁻¹ mod ' + n + ' = ' + fb(t.x) + ' mod ' + n + ' = <b>' + inv + '</b>. Проверка: ' + a0 + '·' + inv + ' mod ' + n + ' = ' + (a0 * inv % n) + ' ✓'
+          : 'НОД(' + a0 + ', ' + n + ') = ' + t.g + ' ≠ 1 — обратного нет. В Python pow(a, -1, n) здесь выдаст ValueError.' };
+    } },
+  { id: 'pow', name: 'Степень по модулю', title: 'Быстрое возведение в степень aᵉ mod n',
+    about: 'Как в уроке недели 5: двоичная запись e читается со старшего бита. Начинаем с r = a; на каждом следующем бите r возводится в квадрат, а если бит равен 1 — ещё умножается на a. После каждого действия берём остаток по n.',
+    fields: [{ name: 'a', label: 'a', value: '5' }, { name: 'e', label: 'e', value: '13' }, { name: 'n', label: 'n', value: '23' }],
+    rand: () => ({ a: ri(2, 60), e: ri(10, 300), n: pick([23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113]) }),
+    run: v => {
+      const a = big(v.a, 'a', 0), e = big(v.e, 'e', 0), n = big(v.n, 'n', 1), bits = e.toString(2);
+      if (bits.length > 4096) throw new Error('e: не больше 4096 бит');
+      if (!e) return { html: '<div class="result ok">a⁰ = 1, поэтому ' + a + '⁰ mod ' + n + ' = <b>' + (1n % n) + '</b></div>' };
+      const A = bmod(a, n), short = bits.length <= 40;
+      let r = A, sq = 0, mul = 0;
+      const rows = [short ? ['1', '1', '1', '—', '—', String(r)] : ['1', '1', '—', '—', String(r)]];
+      for (let i = 1; i < bits.length; i++) {
+        const s = r * r % n; sq++; r = s;
+        let mc = '—';
+        if (bits[i] === '1') { r = r * A % n; mul++; mc = String(r); }
+        rows.push(short ? [bits[i], bits.slice(0, i + 1), String(BigInt('0b' + bits.slice(0, i + 1))), String(s), mc, String(r)] : [String(i + 1), bits[i], String(s), mc, String(r)]);
+      }
+      return { head: short ? ['бит', 'показатель₂', 'показатель₁₀', 'r² mod n', '·a mod n', 'r'] : ['№ бита', 'бит', 'r² mod n', '·a mod n', 'r'], rows, given: 1, hl: [rows.length - 1],
+        note: 'e = ' + (short ? e + ' = ' + bits + '₂, ' : '') + bits.length + ' бит.' + (A !== a ? ' Сначала a mod n = ' + A + '.' : ''),
+        tail: a + '<sup>' + (short ? e : 'e') + '</sup> mod ' + n + ' = <b>' + r + '</b>. Действий: ' + sq + ' ' + plural(sq, 'возведение', 'возведения', 'возведений') + ' в квадрат + ' + mul + ' ' + plural(mul, 'умножение', 'умножения', 'умножений') + ' на a = ' + (sq + mul) + (short ? '; наивно — e − 1 = ' + (e - 1n) + '.' : '.') };
+    } },
+  { id: 'crt', name: 'КТО', title: 'Китайская теорема об остатках',
+    about: 'Система x ≡ rᵢ (mod mᵢ), модули попарно взаимно просты. Как в уроке недели 6: M = m₁·…·m_k, Mᵢ = M / mᵢ, yᵢ = Mᵢ⁻¹ mod mᵢ (обратный ищут от остатка Mᵢ mod mᵢ), x = Σ rᵢ·Mᵢ·yᵢ mod M.',
+    fields: [{ name: 'r', label: 'Остатки rᵢ', value: '2, 3, 2', size: 14 }, { name: 'm', label: 'Модули mᵢ', value: '3, 5, 7', size: 14 }],
+    rand: () => { const ms = shuffled([3, 4, 5, 7, 9, 11, 13], String(Math.random())).reduce((a, x) => a.length < 3 && a.every(y => gcdN(x, y) === 1) ? a.concat(x) : a, []); return { r: ms.map(m => ri(0, m - 1)).join(', '), m: ms.join(', ') }; },
+    run: v => {
+      const rs = bigList(v.r, 'Остатки'), ms = bigList(v.m, 'Модули');
+      if (rs.length !== ms.length) throw new Error('Остатков и модулей должно быть поровну');
+      if (ms.length < 2 || ms.length > 8) throw new Error('Нужно от 2 до 8 сравнений');
+      ms.forEach(x => { if (x < 2n) throw new Error('Модули — не меньше 2'); });
+      for (let i = 0; i < ms.length; i++) for (let j = i + 1; j < ms.length; j++) {
+        const g = bgcd(ms[i], ms[j]);
+        if (g > 1n) throw new Error('НОД(' + ms[i] + ', ' + ms[j] + ') = ' + g + ': модули не взаимно просты, формула не работает (решения может не быть). Сначала проверяйте попарные НОД.');
+      }
+      const M = ms.reduce((a, x) => a * x, 1n), terms = [];
+      const rows = ms.map((mi, i) => {
+        const r0 = bmod(rs[i], mi), Mi = M / mi, y = binv(Mi % mi, mi), t = r0 * Mi * y; terms.push(t);
+        return [subN(i + 1), String(r0), String(mi), String(Mi), String(Mi % mi), String(y), String(t)];
+      });
+      const sum = terms.reduce((a, x) => a + x, 0n), x = sum % M;
+      return { head: ['i', 'rᵢ', 'mᵢ', 'Mᵢ = M / mᵢ', 'Mᵢ mod mᵢ', 'yᵢ = Mᵢ⁻¹ mod mᵢ', 'rᵢ·Mᵢ·yᵢ'], rows, given: 0,
+        note: 'M = ' + ms.join('·') + ' = ' + M + '.',
+        tail: 'x = ' + terms.join(' + ') + ' = ' + sum + ' ≡ <b>' + x + '</b> (mod ' + M + ').<br>Проверка: ' + ms.map(mi => x + ' mod ' + mi + ' = ' + (x % mi)).join(', ') + ' ✓' };
+    } },
+  { id: 'phi', name: 'φ(n)', title: 'Функция Эйлера φ(n)',
+    about: 'Раскладываем n на простые множители и считаем φ по частям: φ(pᵏ) = pᵏ⁻¹·(p − 1), а для взаимно простых множителей φ перемножается. Для простого p: φ(p) = p − 1, для p·q: (p − 1)(q − 1).',
+    fields: [{ name: 'n', label: 'n', value: '360', size: 14 }],
+    rand: () => ({ n: pick([ri(2, 5000), pick([11, 13, 17, 19]) * pick([23, 29, 31, 37]), Math.pow(pick([2, 3, 5, 7]), ri(2, 5))]) }),
+    run: v => {
+      const n = big(v.n, 'n', 1);
+      if (n > 10n ** 12n) throw new Error('n — до 10¹²: множители ищутся перебором делителей');
+      if (n === 1n) return { html: '<div class="result ok">φ(1) = <b>1</b> (по определению)</div>' };
+      let N = Number(n); const fs = [];
+      for (let p = 2; p * p <= N; p += p === 2 ? 1 : 2) if (N % p === 0) { let k = 0; while (N % p === 0) { N /= p; k++; } fs.push([p, k]); }
+      if (N > 1) fs.push([N, 1]);
+      let phi = 1;
+      const rows = fs.map(([p, k]) => { const pk = Math.pow(p, k), f = Math.pow(p, k - 1) * (p - 1); phi *= f; return [String(p), String(k), String(pk), (k > 1 ? p + supN(k - 1) + '·' : '') + '(' + p + ' − 1) = ' + f]; });
+      const prime = fs.length === 1 && fs[0][1] === 1;
+      return { head: ['p', 'k', 'pᵏ', 'φ(pᵏ) = pᵏ⁻¹·(p − 1)'], rows, given: 0, left: [3],
+        note: 'n = ' + fs.map(([p, k]) => p + (k > 1 ? supN(k) : '')).join('·'),
+        tail: prime ? n + ' — простое, φ(' + n + ') = ' + n + ' − 1 = <b>' + phi + '</b>' : 'φ(' + n + ') = ' + rows.map(r => r[3].split(' = ')[1]).join('·') + ' = <b>' + phi + '</b>' };
+    } },
+  { id: 'zp', name: 'Степени в Z_p*', title: 'Порядок элемента и образующие Z_p*',
+    about: 'Порядок a — наименьшее k ≥ 1, при котором aᵏ ≡ 1 (mod p); он всегда делит p − 1. Образующий — элемент порядка p − 1: его степени дают все числа от 1 до p − 1. Оставьте g пустым — будет таблица степеней всех элементов (p ≤ 37).',
+    fields: [{ name: 'p', label: 'p', value: '23' }, { name: 'g', label: 'g', value: '5' }],
+    rand: () => ({ p: pick([11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47]), g: ri(2, 9) }),
+    run: v => {
+      const p = Number(big(v.p, 'p', 3));
+      if (p > 1e6) throw new Error('p — до 1 000 000');
+      if (!isPrimeN(p)) throw new Error('p должно быть простым: при составном модуле не все числа обратимы и Z_p* устроено иначе');
+      if (!String(v.g).trim()) {
+        if (p > 37) throw new Error('Таблица всех элементов — для p ≤ 37. Для большего p введите g.');
+        const gens = [], rows = [];
+        for (let a = 1; a < p; a++) {
+          const row = [String(a)]; let x = 1, ord = 0;
+          for (let k = 1; k < p; k++) { x = x * a % p; if (x === 1 && !ord) { ord = k; row.push('<span class="one">1</span>'); } else row.push(String(x)); }
+          row.push(String(ord)); if (ord === p - 1) gens.push(a); rows.push(row);
+        }
+        const head = ['a']; for (let k = 1; k < p; k++) head.push('a' + supN(k)); head.push('порядок');
+        return { head, rows, steps: false, hl: gens.map(a => a - 1),
+          tail: 'Образующие Z' + subN(p) + '* (выделены): ' + gens.join(', ') + ' — их ' + gens.length + ' = φ(p − 1) = φ(' + (p - 1) + '). Зелёная 1 — первая единица в строке: номер её столбца и есть порядок.' };
+      }
+      const g = Number(big(v.g, 'g', 1));
+      if (g % p === 0) throw new Error('g делится на p — его нет в Z_p*');
+      let x = g % p, ord = 1;
+      while (x !== 1) { x = x * g % p; ord++; }
+      const rows = [];
+      x = 1;
+      for (let k = 1; k <= Math.min(ord, 200); k++) { x = x * g % p; rows.push([String(k), String(x)]); }
+      return { head: ['k', g + 'ᵏ mod ' + p], rows, given: 0, hl: ord <= 200 ? [ord - 1] : [],
+        note: ord > 200 ? 'Показаны первые 200 степеней из ' + ord + '.' : '',
+        tail: 'Порядок ' + g + ' в Z' + subN(p) + '* равен <b>' + ord + '</b>' + (ord === p - 1 ? ' = p − 1: ' + g + ' — образующий, его степени дают все ' + (p - 1) + ' ' + plural(p - 1, 'число', 'числа', 'чисел') + '.' : '. Он делит p − 1 = ' + (p - 1) + ', но меньше его: ' + g + ' не образующий, его степени дают только ' + ord + ' чисел из ' + (p - 1) + '.') };
+    } },
+  { id: 'dh', name: 'Диффи — Хеллман', title: 'Обмен ключами Диффи — Хеллмана',
+    about: 'Как в уроке недели 6: открыто p и g, секреты a и b. По сети идут только A = gᵃ mod p и B = gᵇ mod p; общий ключ K = Bᵃ mod p = Aᵇ mod p.',
+    fields: [{ name: 'p', label: 'p', value: '23' }, { name: 'g', label: 'g', value: '5' }, { name: 'a', label: 'a', value: '6' }, { name: 'b', label: 'b', value: '15' }],
+    rand: () => {
+      const p = pick([23, 47, 59, 83, 107, 167, 227, 383, 467, 503]), ord = g => { let x = g, k = 1; while (x !== 1) { x = x * g % p; k++; } return k; };
+      let g = 2; while (ord(g) !== p - 1) g++;
+      return { p, g, a: ri(2, p - 2), b: ri(2, p - 2) };
+    },
+    run: v => {
+      const p = big(v.p, 'p', 3), g = big(v.g, 'g', 2), a = big(v.a, 'a', 1), b = big(v.b, 'b', 1);
+      if (g >= p) throw new Error('g должно быть меньше p');
+      if (a > p - 2n || b > p - 2n) throw new Error('Секреты a и b — от 1 до p − 2');
+      const A = bpow(g, a, p), B = bpow(g, b, p), K1 = bpow(B, a, p), K2 = bpow(A, b, p);
+      return { head: ['кто', 'что считает', 'значение', 'по сети'], left: [0, 1, 3], given: 2,
+        rows: [['Алиса', 'секрет a', String(a), 'нет'], ['Боб', 'секрет b', String(b), 'нет'], ['Алиса → Боб', 'A = ' + g + '<sup>' + a + '</sup> mod ' + p, String(A), 'да, открыто'],
+          ['Боб → Алиса', 'B = ' + g + '<sup>' + b + '</sup> mod ' + p, String(B), 'да, открыто'], ['Алиса', 'K = ' + B + '<sup>' + a + '</sup> mod ' + p, String(K1), 'нет'], ['Боб', 'K = ' + A + '<sup>' + b + '</sup> mod ' + p, String(K2), 'нет']],
+        hl: [4, 5], bad: K1 !== K2,
+        tail: 'Общий ключ K = <b>' + K1 + '</b> получился у обоих. Противник видит p, g, A и B; чтобы найти K, ему нужно решить DLP — найти a по A = gᵃ mod p.' + (p < 1000000n && !isPrimeN(Number(p)) ? '<br>Внимание: p не простое, а в настоящем DH p простое.' : '') };
+    } },
+];
+TOOL.num = (m, item) => toolSet(m, 'num', NUM, item);
+
+/* --- Шифры: Цезарь, аффинный, Виженер (как в уроках недель 4 и 7) и частоты букв --- */
+const ALPHA = { en: 'abcdefghijklmnopqrstuvwxyz', ru: 'абвгдежзийклмнопрстуфхцчшщъыьэюя' };
+const ALPHA_OPT = [['en', 'латиница a–z (26 букв)'], ['ru', 'русский без ё (32 буквы)']];
+// частоты букв в языке, %; в русском «ё» учтена в «е»
+const FREQ = {
+  en: [8.17, 1.49, 2.78, 4.25, 12.7, 2.23, 2.02, 6.09, 6.97, 0.15, 0.77, 4.03, 2.41, 6.75, 7.51, 1.93, 0.1, 5.99, 6.33, 9.06, 2.76, 0.98, 2.36, 0.15, 1.97, 0.07],
+  ru: [8.01, 1.59, 4.54, 1.7, 2.98, 8.49, 0.94, 1.65, 7.35, 1.21, 3.49, 4.4, 3.21, 6.7, 10.97, 2.81, 4.73, 5.47, 6.26, 2.62, 0.26, 0.97, 0.48, 1.44, 0.73, 0.36, 0.04, 1.9, 1.74, 0.32, 0.64, 2.01],
+};
+const noYo = s => s.replace(/ё/g, 'е').replace(/Ё/g, 'Е');
+function caesarRu(text, k) { const A = ALPHA.ru; return [...noYo(text)].map(ch => { const i = A.indexOf(ch.toLowerCase()); if (i < 0) return ch; const c = A[(i + k) % 32]; return ch === ch.toLowerCase() ? c : c.toUpperCase(); }).join(''); }
+const FREQ_SAMPLE = 'Давным-давно полководцы отправляли донесения гонцами. Гонца могли перехватить, поэтому важное письмо шифровали: каждую букву заменяли другой, ' +
+  'отстоящей от неё на несколько позиций в алфавите. Получатель знал этот сдвиг и легко восстанавливал исходный текст. Противник же видел только бессмысленный набор букв. ' +
+  'Однако у такого способа есть слабое место: одни буквы в языке встречаются гораздо чаще других, и при сдвиге частоты не меняются, они просто переходят к другим буквам. ' +
+  'Посчитайте, какая буква чаще всего встречается в этом тексте, и сравните её с самой частой буквой русского языка.';
+const CIPHER = [
+  { id: 'enc', name: 'Шифрование', title: 'Цезарь, аффинный шифр, Виженер',
+    about: 'Буквы нумеруются с нуля (a = 0, …, z = 25; а = 0, …, я = 31). Цезарь: y = (x + k) mod m. Аффинный: y = (a·x + b) mod m, расшифрование x = a⁻¹·(y − b) mod m. Виженер — Цезарь со своим сдвигом для каждой буквы: ключ повторяется над текстом. Пробелы, знаки и цифры не шифруются; в русском «ё» считается как «е».',
+    fields: [{ name: 'ab', label: 'Алфавит', value: 'en', options: ALPHA_OPT }, { name: 'kind', label: 'Шифр', value: 'caesar', options: [['caesar', 'Цезарь'], ['affine', 'аффинный'], ['vig', 'Виженер']] },
+      { name: 'dir', label: 'Что делаем', value: 'enc', options: [['enc', 'зашифровать'], ['dec', 'расшифровать']] },
+      { name: 'k', label: 'Ключ k', value: '3', when: v => v.kind === 'caesar' }, { name: 'a', label: 'a', value: '5', when: v => v.kind === 'affine' }, { name: 'b', label: 'b', value: '8', when: v => v.kind === 'affine' },
+      { name: 'w', label: 'Ключевое слово', value: 'lemon', size: 14, when: v => v.kind === 'vig' }, { name: 't', label: 'Текст', value: 'Attack at dawn', area: true }],
+    run: v => {
+      const A = ALPHA[v.ab], m = A.length, mB = BigInt(m), dec = v.dir === 'dec', text = v.ab === 'ru' ? noYo(v.t) : v.t;
+      let f, note = '';
+      if (v.kind === 'caesar') {
+        const k = Number(bmod(big(v.k, 'Ключ k'), mB));
+        f = x => dec ? [(x - k + m) % m, '(' + x + ' − ' + k + ') mod ' + m] : [(x + k) % m, '(' + x + ' + ' + k + ') mod ' + m];
+      } else if (v.kind === 'affine') {
+        const a = Number(bmod(big(v.a, 'a'), mB)), b = Number(bmod(big(v.b, 'b'), mB));
+        if (gcdN(a, m) !== 1) throw new Error('a = ' + a + ' не взаимно просто с ' + m + ': разные буквы будут шифроваться одинаково, расшифровать нельзя. Подходят a: ' + [...Array(m).keys()].filter(x => gcdN(x, m) === 1).join(', '));
+        const ai = Number(binv(BigInt(a), mB));
+        note = 'a⁻¹ mod ' + m + ' = ' + ai + ' (проверка: ' + a + '·' + ai + ' mod ' + m + ' = 1).';
+        f = x => dec ? [(ai * ((x - b + m) % m)) % m, ai + '·(' + x + ' − ' + b + ') mod ' + m] : [(a * x + b) % m, '(' + a + '·' + x + ' + ' + b + ') mod ' + m];
+      } else {
+        const w = [...(v.ab === 'ru' ? noYo(v.w) : v.w).toLowerCase()].filter(ch => A.includes(ch));
+        if (!w.length) throw new Error('Ключевое слово — из букв выбранного алфавита');
+        note = 'Сдвиги ключа: ' + w.map(ch => ch + ' = ' + A.indexOf(ch)).join(', ') + '.';
+        f = (x, j) => { const kl = w[j % w.length], k = A.indexOf(kl); return dec ? [(x - k + m) % m, '(' + x + ' − ' + k + ') mod ' + m, kl] : [(x + k) % m, '(' + x + ' + ' + k + ') mod ' + m, kl]; };
+      }
+      let j = 0, res = '';
+      const rows = [];
+      for (const ch of text) {
+        const i = A.indexOf(ch.toLowerCase());
+        if (i < 0) { res += ch; continue; }
+        const [y, how, kl] = f(i, j++), c = A[y];
+        res += ch === ch.toLowerCase() ? c : c.toUpperCase();
+        if (rows.length < 40) rows.push([String(j), esc(ch.toLowerCase()), String(i)].concat(v.kind === 'vig' ? [kl] : [], [how, String(y), c]));
+      }
+      if (!j) throw new Error('В тексте нет букв выбранного алфавита');
+      return { head: ['№', dec ? 'шифр' : 'буква', dec ? 'y' : 'x'].concat(v.kind === 'vig' ? ['ключ'] : [], ['вычисление', dec ? 'x' : 'y', dec ? 'буква' : 'шифр']), rows, given: 0, left: [v.kind === 'vig' ? 4 : 3],
+        note: note + (j > 40 ? ' В таблице — первые 40 букв из ' + j + '.' : ''),
+        tail: '<div class="ttl">' + (dec ? 'Открытый текст' : 'Шифртекст') + '</div><pre class="cout">' + esc(res) + '</pre><button class="link cp">Копировать</button>',
+        after: out => { const b = $('.cp', out); if (b) b.onclick = () => copy(res); } };
+    } },
+  { id: 'freq', name: 'Частоты букв', title: 'Частотный анализ',
+    about: 'Как в уроке недели 7: Цезарь и простая замена сохраняют частоты — они только достаются другим буквам. Сравните самые частые буквы шифртекста с частотами языка. Индекс совпадений показывает, похож ли текст на язык: у осмысленного текста он заметно больше, чем у случайного (≈ 1/m).',
+    fields: [{ name: 'ab', label: 'Алфавит', value: 'ru', options: ALPHA_OPT }, { name: 't', label: 'Текст', value: caesarRu(FREQ_SAMPLE, 3), area: true }],
+    steps: false,
+    run: v => {
+      const A = ALPHA[v.ab], m = A.length, cnt = new Array(m).fill(0);
+      for (const ch of (v.ab === 'ru' ? noYo(v.t) : v.t).toLowerCase()) { const i = A.indexOf(ch); if (i >= 0) cnt[i]++; }
+      const N = cnt.reduce((a, x) => a + x, 0);
+      if (N < 2) throw new Error('В тексте нет букв выбранного алфавита');
+      const ic = cnt.reduce((a, c) => a + c * (c - 1), 0) / (N * (N - 1));
+      const mine = A.split('').map((ch, i) => [ch, 100 * cnt[i] / N, cnt[i]]).filter(x => x[2]).sort((a, b) => b[1] - a[1]);
+      const lang = A.split('').map((ch, i) => [ch, FREQ[v.ab][i]]).sort((a, b) => b[1] - a[1]);
+      const mx = Math.max(mine[0][1], lang[0][1]);
+      const bars = list => list.map(([ch, p, c]) => '<div class="fq"><b>' + ch + '</b><span class="bar" aria-hidden="true"><i style="width:' + (100 * p / mx).toFixed(1) + '%"></i></span><span>' + p.toFixed(1).replace('.', ',') + ' %' + (c !== undefined ? ' · ' + c : '') + '</span></div>').join('');
+      const icL = v.ab === 'ru' ? 0.055 : 0.066;
+      return { html: '<p class="small">Букв: ' + N + '. Индекс совпадений: <b>' + ic.toFixed(4).replace('.', ',') + '</b> (у ' + (v.ab === 'ru' ? 'русского' : 'английского') + ' текста ≈ ' + String(icL).replace('.', ',') + ', у случайных букв ≈ ' + (1 / m).toFixed(4).replace('.', ',') + ').</p>' +
+        '<div class="fqgrid"><div><div class="small"><b>В тексте</b>, по убыванию</div>' + bars(mine) + '</div><div class="lang"><div class="small"><b>В языке</b>, по убыванию</div>' + bars(lang) + '</div></div>' };
+    } },
+];
+TOOL.cipher = (m, item) => toolSet(m, 'cipher', CIPHER, item);
+
+/* --- Байты: системы счисления, UTF-8, XOR (недели 1, 2 и 7) --- */
+const hex2 = b => b.toString(16).padStart(2, '0');
+const bin8 = b => b.toString(2).padStart(8, '0');
+function bytesOf(s, kind, name) {
+  if (kind === 'text') return [...new TextEncoder().encode(s)];
+  const t = s.replace(/0x|\\x|[\s:,]/gi, '');
+  if (!/^[0-9a-f]*$/i.test(t) || t.length % 2) throw new Error(name + ': hex — пары цифр 0–9 и a–f, например d0 9f');
+  return (t.match(/../g) || []).map(x => parseInt(x, 16));
+}
+const pyBytes = bs => "b'" + bs.map(b => b === 9 ? '\\t' : b === 10 ? '\\n' : b === 13 ? '\\r' : b === 39 ? "\\'" : b === 92 ? '\\\\' : b >= 32 && b < 127 ? String.fromCharCode(b) : '\\x' + hex2(b)).join('') + "'";
+const utf8Role = b => b < 0x80 ? '0xxxxxxx — символ ASCII' : b < 0xc0 ? '10xxxxxx — продолжение' : b < 0xe0 ? '110xxxxx — начало, 2 байта' : b < 0xf0 ? '1110xxxx — начало, 3 байта' : b < 0xf8 ? '11110xxx — начало, 4 байта' : 'не бывает в UTF-8';
+const BYTES = [
+  { id: 'base', name: 'Системы счисления', title: 'Перевод между системами счисления',
+    about: 'Как в уроках недель 1–2: в десятичную — сумма цифр, умноженных на степени основания; из десятичной — делим на основание с остатком, пока не получится 0, и читаем остатки снизу вверх.',
+    fields: [{ name: 'x', label: 'Число', value: '2026', size: 18 }, { name: 'from', label: 'из системы', value: '10', size: 3 }, { name: 'to', label: 'в систему', value: '2', size: 3 }],
+    rand: () => ({ x: String(ri(100, 4095)), from: '10', to: String(pick([2, 8, 16])) }),
+    run: v => {
+      const F = Number(big(v.from, 'Основание «из»', 2)), T = Number(big(v.to, 'Основание «в»', 2));
+      if (F > 36 || T > 36) throw new Error('Основания — от 2 до 36');
+      let s = String(v.x).trim().toLowerCase().replace(/[\s_]/g, '');
+      if ((F === 16 && /^0x/.test(s)) || (F === 2 && /^0b/.test(s)) || (F === 8 && /^0o/.test(s))) s = s.slice(2);
+      const D = '0123456789abcdefghijklmnopqrstuvwxyz';
+      if (!s || [...s].some(c => D.indexOf(c) < 0 || D.indexOf(c) >= F)) throw new Error('Число: в системе с основанием ' + F + ' цифры — ' + D.slice(0, F).split('').join(' '));
+      if (s.length > 300) throw new Error('Число: не больше 300 цифр');
+      const N = [...s].reduce((a, c) => a * BigInt(F) + BigInt(D.indexOf(c)), 0n);
+      let note = '';
+      if (F !== 10) note = s.length <= 24 ? s + subN(F) + ' = ' + [...s].map((c, i) => D.indexOf(c) + '·' + F + supN(s.length - 1 - i)).join(' + ') + ' = <b>' + N + '</b>' : s + subN(F) + ' = ' + N;
+      const nb = N.toString(2).length, all = 'В других системах: ' + N.toString(2) + '₂ · ' + N.toString(8) + '₈ · ' + N + '₁₀ · ' + N.toString(16) + '₁₆. Длина: ' + nb + ' ' + plural(nb, 'бит', 'бита', 'бит') + (N ? ', ' + Math.ceil(nb / 8) + ' ' + plural(Math.ceil(nb / 8), 'байт', 'байта', 'байт') + '.' : '.');
+      if (T === 10) return { html: '<div class="result ok">' + (note || N + ' — уже в десятичной системе.') + '<br>' + all + '</div>' };
+      const rows = []; let q = N;
+      do { const nq = q / BigInt(T), r = q % BigInt(T); rows.push([String(q), String(nq), String(r) + (r > 9n ? ' = ' + D[Number(r)] : '')]); q = nq; } while (q > 0n);
+      return { head: ['число', '÷ ' + T + ' = частное', 'остаток (цифра)'], rows, given: 0, note: note ? note + ' — теперь делим на ' + T + '.' : '',
+        tail: 'Остатки снизу вверх: <b>' + N.toString(T) + subN(T) + '</b><br>' + all };
+    } },
+  { id: 'utf8', name: 'Текст → байты', title: 'Строка → байты UTF-8',
+    about: 'Как str.encode() в уроке недели 2: латиница, цифры и знаки — 1 байт, кириллица — 2 байта, большинство других символов — 3, эмодзи — 4. Номер символа — ord(ch).',
+    fields: [{ name: 't', label: 'Текст', value: 'Привет, AES!', size: 28 }], steps: false,
+    run: v => {
+      const chars = [...v.t]; if (!chars.length) throw new Error('Введите текст');
+      const enc = new TextEncoder(), all = [...enc.encode(v.t)];
+      const rows = chars.slice(0, 64).map(ch => { const bs = [...enc.encode(ch)], cp = ch.codePointAt(0); return [ch === ' ' ? '␠' : esc(ch), 'U+' + cp.toString(16).toUpperCase().padStart(4, '0') + ' = ' + cp, bs.map(hex2).join(' '), bs.map(bin8).join(' ')]; });
+      return { head: ['символ', 'ord (номер)', 'байты UTF-8, hex', 'биты'], rows, left: [3], steps: false,
+        note: chars.length > 64 ? 'В таблице — первые 64 символа из ' + chars.length + '.' : '',
+        tail: 'Символов: ' + chars.length + ', байт: ' + all.length + '.<br>hex: <code>' + all.map(hex2).join(' ') + '</code><br>Python: <code>' + esc(pyBytes(all)) + '</code><br>Base64: <code>' + btoa(String.fromCharCode(...all)) + '</code>' };
+    } },
+  { id: 'hex', name: 'Байты → текст', title: 'Байты (hex) → строка',
+    about: 'Как bytes.fromhex(...).decode(): обратный перевод. По старшим битам каждого байта видно, где начинается символ и сколько в нём байт. Неверная последовательность — как UnicodeDecodeError в Python.',
+    fields: [{ name: 'h', label: 'Байты, hex', value: 'd0 9f d1 80 d0 b8 d0 b2 d0 b5 d1 82', size: 36 }], steps: false,
+    run: v => {
+      const bs = bytesOf(v.h, 'hex', 'Байты'); if (!bs.length) throw new Error('Введите байты в hex');
+      let text = null; try { text = new TextDecoder('utf-8', { fatal: true }).decode(new Uint8Array(bs)); } catch (e) {}
+      const rows = bs.slice(0, 64).map((b, i) => [String(i), hex2(b), bin8(b), String(b), utf8Role(b)]);
+      return { head: ['№', 'hex', 'биты', 'число', 'роль в UTF-8'], rows, left: [4], steps: false, bad: text === null,
+        note: bs.length > 64 ? 'В таблице — первые 64 байта из ' + bs.length + '.' : '',
+        tail: text === null ? 'Это не UTF-8: последовательность байтов неверная (в Python — UnicodeDecodeError). Посмотрите на столбец «роль»: после байта-начала должно идти нужное число байтов-продолжений.' : '<div class="ttl">Текст (' + bs.length + ' байт, ' + [...text].length + ' символов)</div><pre class="cout">' + esc(text) + '</pre>' };
+    } },
+  { id: 'xor', name: 'XOR', title: 'XOR байтов',
+    about: 'Как xor_bytes в уроке недели 7: байт за байтом a ⊕ b, бит за битом — сложение по модулю 2. Без повтора длина результата — по короткому (zip обрезает). С повтором ключа — «Виженер для байтов»: так шифр с коротким ключом и ломается.',
+    fields: [{ name: 'a', label: 'a', value: 'attack at dawn', size: 20 }, { name: 'fa', label: '', value: 'text', options: [['text', 'текст'], ['hex', 'hex']] },
+      { name: 'b', label: 'b', value: 'key', size: 20 }, { name: 'fb', label: '', value: 'text', options: [['text', 'текст'], ['hex', 'hex']] },
+      { name: 'rep', label: 'Повтор b', value: '1', options: [['1', 'повторять b по длине a'], ['', 'нет, по короткому']] }],
+    run: v => {
+      const A = bytesOf(v.a, v.fa, 'a'), B0 = bytesOf(v.b, v.fb, 'b');
+      if (!A.length || !B0.length) throw new Error('Введите оба значения');
+      const B = v.rep ? A.map((_, i) => B0[i % B0.length]) : B0, n = Math.min(A.length, B.length), X = [];
+      for (let i = 0; i < n; i++) X.push(A[i] ^ B[i]);
+      const rows = X.slice(0, 48).map((x, i) => [String(i), hex2(A[i]), bin8(A[i]), hex2(B[i]), bin8(B[i]), bin8(x), hex2(x)]);
+      let txt = null; try { txt = new TextDecoder('utf-8', { fatal: true }).decode(new Uint8Array(X)); if (/[\x00-\x08\x0e-\x1f\x7f]/.test(txt)) txt = null; } catch (e) {}
+      return { head: ['№', 'a', 'a, биты', 'b', 'b, биты', 'a ⊕ b, биты', 'a ⊕ b'], rows, given: 0,
+        note: (A.length !== n ? 'b короче a — без повтора результат обрезан до ' + n + ' байт. ' : '') + (X.length > 48 ? 'В таблице — первые 48 байт из ' + X.length + '.' : ''),
+        tail: 'a ⊕ b (' + n + ' байт): <code>' + X.map(hex2).join(' ') + '</code>' + (txt !== null ? '<br>как текст: «' + esc(txt) + '»' : '') + '<br>Проверка: (a ⊕ b) ⊕ b = a — XOR с тем же ключом возвращает исходные байты.' };
+    } },
+];
+TOOL.bytes = (m, item) => toolSet(m, 'bytes', BYTES, item);
+
+/* --- GF(2⁸): умножение через xtime (неделя 8) --- */
+const poly8 = b => { const t = []; for (let i = 7; i >= 0; i--) if (b >> i & 1) t.push(i === 0 ? '1' : i === 1 ? 'x' : 'x' + supN(i)); return t.join(' + ') || '0'; };
+const H2 = b => '{' + hex2(b).toUpperCase() + '}';
+const GF = [
+  { id: 'mul', name: 'Умножение', title: 'Умножение в GF(2⁸): {a}·{b}',
+    about: 'Как в уроке недели 8: строим цепочку {a}, {a}·{02}, {a}·{04}, … через xtime — сдвиг влево, а если старший бит был 1, ещё ⊕ {1B} (x⁸ ≡ x⁴ + x³ + x + 1). Затем складываем (XOR) звенья, где у b стоит бит 1.',
+    fields: [{ name: 'a', label: 'a (hex)', value: '57', size: 4 }, { name: 'b', label: 'b (hex)', value: '13', size: 4 }],
+    rand: () => ({ a: hex2(ri(1, 255)), b: hex2(ri(1, 255)) }),
+    run: v => {
+      const byte = (s, n) => { const t = String(s).trim().replace(/^0x|[{}]/gi, ''); if (!/^[0-9a-f]{1,2}$/i.test(t)) throw new Error(n + ': один байт в hex, от 00 до FF'); return parseInt(t, 16); };
+      const a = byte(v.a, 'a'), b = byte(v.b, 'b');
+      const top = b ? 31 - Math.clz32(b) : 0, rows = [], terms = [];
+      let cur = a, acc = 0;
+      for (let i = 0; i <= top; i++) {
+        const on = b >> i & 1;
+        if (on) { acc ^= cur; terms.unshift(H2(cur)); }
+        const nx = (cur << 1 ^ (cur & 0x80 ? 0x11b : 0)) & 0xff;
+        rows.push([H2(1 << i), H2(cur), bin8(cur), i < top ? (cur & 0x80 ? 'старший бит 1: сдвиг ⊕ 1B = ' + H2(nx) : 'сдвиг = ' + H2(nx)) : '', String(on), on ? '⊕ ' + H2(cur) : '']);
+        cur = nx;
+      }
+      return { head: ['xⁱ', H2(a) + '·xⁱ', 'биты', 'xtime → следующее звено', 'бит i у b', 'в сумму'], rows, given: 1, left: [3], hl: rows.map((r, i) => r[4] === '1' ? i : -1).filter(i => i >= 0),
+        note: 'b = ' + H2(b) + ' = ' + bin8(b) + '₂ = ' + poly8(b) + '.',
+        tail: H2(a) + '·' + H2(b) + ' = ' + (terms.join(' ⊕ ') || '{00}') + ' = <b>' + H2(acc) + '</b><br>Многочлены: a = ' + poly8(a) + ', b = ' + poly8(b) + ', результат = ' + poly8(acc) + '; модуль m(x) = x⁸ + x⁴ + x³ + x + 1 = {11B}.' };
+    } },
+];
+TOOL.gf = (m, item) => toolSet(m, 'gf', GF, item);
+
+/* --- Python: песочница --- */
+// код хранится только в этом браузере; prev — прошлый код, если его заменил пример
+const SBX_KEY = KEY + '-sandbox';
+const SBX_START = '# Песочница: пишите любой код и запускайте (Ctrl+Enter).\n# Например, как Python делит отрицательные числа:\nprint(-17 // 5, -17 % 5)\n\nname = input()          # строка из поля «Входные данные»\nprint("Привет,", name)\n';
+const SBX_EXAMPLES = [
+  ['Деление с остатком и большие числа (нед. 1)', 'print(17 // 5, 17 % 5)\nprint(-17 // 5, -17 % 5)     # остаток всегда от 0 до b − 1\nprint(2 ** 128)\nprint(len(str(2 ** 2048)), "цифр в 2^2048")\n', ''],
+  ['Двоичная и шестнадцатеричная запись (нед. 1–2)', 'n = 2026\nprint(bin(n), oct(n), hex(n))\nprint(int("11111101010", 2), int("7ea", 16))\nprint(f"{n:016b}", f"{255:02x}")\nprint(n.bit_length(), "бит")\n', ''],
+  ['Строки и байты: encode, hex (нед. 2)', 's = "Привет"\nb = s.encode("utf-8")\nprint(b, len(s), len(b))\nprint(b.hex(" "))\nprint(bytes.fromhex("d0 9f d1 80").decode())\nfor ch in "Aя€":\n    print(ch, ord(ch), hex(ord(ch)), ch.encode())\n', ''],
+  ['Чтение данных: input и split (нед. 1–3)', 'a, b = map(int, input().split())\nnums = [int(x) for x in input().split()]\nprint(a + b, sum(nums), max(nums))\n', '17 5\n3 1 4 1 5 9 2 6'],
+  ['Сколько времени занимает pow (нед. 5)', 'import time\n\na, n = 5, 2**127 - 1\nfor e in (10**3, 10**6, 2**1000):\n    t0 = time.perf_counter()\n    r = pow(a, e, n)\n    print(f"e ~ 2^{e.bit_length()}: {time.perf_counter() - t0:.6f} с")\n', ''],
+  ['random и secrets (нед. 6–7)', 'import random, secrets\n\nrandom.seed(42)\nprint([random.randrange(100) for _ in range(5)])   # при том же seed — те же числа\nprint(secrets.randbelow(100), secrets.token_hex(16))  # для ключей — только secrets\n', ''],
+  ['Частоты букв: Counter (нед. 7)', 'from collections import Counter\n\ntext = input().lower()\ncnt = Counter(ch for ch in text if ch.isalpha())\ntotal = sum(cnt.values())\nfor ch, k in cnt.most_common(5):\n    print(ch, k, f"{100 * k / total:.1f} %")\n', 'Шифр Цезаря заменяет каждую букву буквой, стоящей на k позиций дальше по алфавиту'],
+  ['AES-GCM из cryptography (нед. 9)', 'import os\nfrom cryptography.hazmat.primitives.ciphers.aead import AESGCM\n\nkey = AESGCM.generate_key(bit_length=128)\nnonce = os.urandom(12)\nct = AESGCM(key).encrypt(nonce, "секрет".encode(), None)\nprint(ct.hex())\nprint(AESGCM(key).decrypt(nonce, ct, None).decode())\n', ''],
+  ['Хеш и лавинный эффект (нед. 10)', 'import hashlib\n\nh1 = hashlib.sha256(b"abc").digest()\nh2 = hashlib.sha256(b"abd").digest()\nprint(h1.hex())\nprint(h2.hex())\ndiff = sum(bin(x ^ y).count("1") for x, y in zip(h1, h2))\nprint("различных бит:", diff, "из", 8 * len(h1))\n', ''],
+];
+function sbxLoad() { const d = { code: SBX_START, stdin: 'студент', prev: '' }; try { return Object.assign(d, JSON.parse(localStorage.getItem(SBX_KEY) || '{}')); } catch (e) { return d; } }
+function sbxSave(st) { try { localStorage.setItem(SBX_KEY, JSON.stringify(st)); } catch (e) {} }
+// код из теории: прошлый свой код не теряется — его можно вернуть кнопкой
+function toSandbox(code) {
+  const st = sbxLoad();
+  if (st.code.trim() && st.code !== code && st.code !== SBX_START) st.prev = st.code;
+  st.code = code; sbxSave(st); location.hash = 'tools';
+}
+TOOL[''] = m => {
+  const st = sbxLoad();
+  m.appendChild(el('p', { class: 'small' }, 'Python 3.12 прямо в браузере — ничего устанавливать не нужно. Код хранится только на этом устройстве и никуда не отправляется. ' +
+    'Как в интерактивном Python, значение выражения в отдельной строке печатается само. <code>input()</code> читает строки из поля «Входные данные». Есть вся стандартная библиотека; <code>cryptography</code>, <code>numpy</code>, <code>sympy</code>, <code>pandas</code> и <code>Crypto</code> (pycryptodome) загрузятся при первом импорте. Код из теории открывается здесь кнопкой «▶ В песочнице» под ним.'));
+  const ex = el('select', { 'aria-label': 'Открыть пример' }, '<option value="">Открыть пример…</option>' + SBX_EXAMPLES.map((e, i) => '<option value="' + i + '">' + esc(e[0]) + '</option>').join(''));
+  const top = el('div', { class: 'filters' }); top.appendChild(ex); m.appendChild(top);
+  const host = el('div', { class: 'editor' }, '<div class="ed-h"><span>sandbox.py</span><span>Python 3.12 · Ctrl+Enter — запуск</span></div>');
+  m.appendChild(host);
+  const ed = makeEditor(host, st.code, v => { st.code = v; sbxSave(st); });
+  const setCode = c => { ed.set(c); st.code = c; sbxSave(st); };
+  const inLab = el('label', { class: 'sbin' }, '<span class="small">Входные данные: каждая строка — один вызов input()</span>');
+  const stdin = el('textarea', { spellcheck: 'false', rows: 3 }); stdin.value = st.stdin;
+  stdin.addEventListener('input', () => { st.stdin = stdin.value; sbxSave(st); });
+  inLab.appendChild(stdin);
+  const out = el('div', { class: 'result', hidden: '' }), stat = el('div', { class: 'pystat' }); paintPy(stat);
+  const run = el('button', { class: 'primary' }, 'Запустить');
+  const go = async () => {
+    if (run.disabled) return;
+    run.disabled = true; run.textContent = 'Выполняется…';
+    try {
+      const code = ed.get();
+      const res = JSON.parse(await py('sbx_run', [code, stdin.value], 15000, code));
+      out.className = 'result' + (res.err ? ' bad' : '');
+      out.innerHTML = '<div class="ttl">Вывод</div><pre>' + (esc(res.out) || '<i>(пусто)</i>') + '</pre>' + (res.err ? 'Ошибка: <code>' + esc(res.err) + '</code>' +
+        (/EOFError/.test(res.err) ? '<br>input() не хватило строк — допишите их в «Входные данные».' : '') : '');
+    } catch (e) { out.className = 'result bad'; out.innerHTML = e.timeout ? 'Программа работала дольше 15 секунд и остановлена. Возможно, это бесконечный цикл.' : esc(e.message); }
+    out.hidden = false; run.disabled = false; run.textContent = 'Запустить';
+  };
+  run.addEventListener('click', go);
+  host.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); go(); } }, true);
+  const back = linkBtn('Вернуть прошлый код', () => { const c = ed.get(); setCode(st.prev); st.prev = c; sbxSave(st); });
+  back.hidden = !st.prev;
+  const keep = () => { const c = ed.get(); if (c.trim() && c !== SBX_START && !SBX_EXAMPLES.some(e => e[1] === c)) { st.prev = c; back.hidden = false; } };
+  ex.addEventListener('change', () => {
+    const e = SBX_EXAMPLES[+ex.value]; ex.value = '';
+    if (!e) return;
+    keep(); setCode(e[1]); stdin.value = st.stdin = e[2]; sbxSave(st); out.hidden = true;
+  });
+  const acts = el('div', { class: 'actions' });
+  acts.append(run, pbtn('Скачать .py', () => download('sandbox.py', ed.get())), linkBtn('Очистить', () => { keep(); setCode(''); out.hidden = true; }), back);
+  m.append(inLab, acts, out, stat);
+  setTimeout(ed.refresh, 0);
+  pyStart().catch(() => {});   // Python загружается сразу, пока пишется код
+};
+
+// код из теории — в песочницу одной кнопкой; не в контрольных и не в тестах, где ответ надо найти самому
+function tryButtons(body, l) {
+  if (isCtrlLesson(l) || examNow()) return;
+  body.querySelectorAll('pre').forEach(pre => {
+    const code = pre.textContent.replace(/\s+$/, ''), first = code.split('\n')[0];
+    if (code.length < 4 || /^\s*(\$|>|pip3? |python3? -|py -|cd |source |[A-Za-z]:\\)/.test(first) || !/[=(]|^\s*(import|from|def|for|if|print)\b/m.test(code)) return;
+    pre.after(el('button', { class: 'link try', title: 'Открыть этот код в песочнице Python', on: { click: () => toSandbox(code + '\n') } }, '▶ В песочнице'));
+  });
+}
+
 function menu() {
   if ($('.menu')) return $('.menu').remove();
   const mn = el('div', { class: 'menu' });
@@ -3313,6 +3895,7 @@ function menu() {
       f.click();
     });
   }
+  item('Инструменты: Python, Евклид, шифры', () => { location.hash = 'tools'; });
   mn.appendChild(el('div', { class: 'sep' }));
   mn.appendChild(el('div', { class: 'mh' }, 'Оформление'));
   Object.entries(DESIGNS).forEach(([k, v]) => item((design() === k ? '● ' : '○ ') + v.name, () => setDesign(k)));
