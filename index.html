@@ -124,7 +124,7 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 
 /* шапка */
 .top { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 12px; height: var(--top-h); padding: 0 18px; background: var(--bg); border-bottom: 1px solid var(--line); }
-.top .brand { display: flex; align-items: center; gap: 10px; font: 700 18px var(--display); white-space: nowrap; cursor: pointer; min-width: 0; }
+.top .brand { display: flex; align-items: center; gap: 10px; font: 700 18px var(--display); white-space: nowrap; cursor: pointer; min-width: 0; overflow: hidden; }
 .top .brand .logo { flex: none; width: 32px; height: 32px; border-radius: 10px; display: grid; place-items: center; background: var(--accent); color: var(--on-accent); font-size: 15px; }
 .top .brand small { font: 500 13px var(--font); color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
 .top .grow { flex: 1; }
@@ -470,7 +470,8 @@ body.bare main { max-width: 620px; padding-top: 12vh; }
   main { padding: 14px 12px 96px; }
   .pager { grid-template-columns: 1fr; } .pager button.nx { grid-column: 1; text-align: left; align-items: flex-start; }
 }
-@media (max-width: 520px) { .top .score .nm { display: none; } .top button { padding: 7px 11px; } }
+@media (max-width: 900px) { .top .score .nm { display: none; } }   /* имя — в кабинете; рядом с кнопкой «Инструменты» оно не помещается */
+@media (max-width: 520px) { .top button { padding: 7px 11px; } }
 @media (max-width: 400px) { .top .brand > span:not(.logo) { display: none; } }
 
 /* ===== ОФОРМЛЕНИЕ «КЛЮЧ» ===== */
@@ -1247,6 +1248,7 @@ function examTryDone(s, box) {
   if (!t) return;
   t.n++; save();
   const left = EXAM_TRIES - t.n;
+  if (box.classList.contains('ok')) return;   // верно — дальше отвечать незачем
   box.appendChild(el('div', { class: 'small' }, left > 0 ? 'Осталось попыток: ' + left + ' из ' + EXAM_TRIES : 'Попытки на эту задачу закончились — в балл идёт лучший ответ.'));
 }
 const R = {};
@@ -1389,7 +1391,8 @@ R.dataset = (s, root) => {
       return;
     }
     const t = examTries(s);
-    area.append(el('div', { class: 'small' }, 'Ваши данные' + (fixed ? '' : ' (набор №' + ((r.set || 0) - base() + 1) + ')') + ':' + (t ? ' На контрольной — ' + EXAM_TRIES + ' попытки, использовано ' + t.n + '.' : '')), el('pre', {}, esc(r.ds)), el('div', { class: 'actions' }));
+    if (t) area.append(el('div', { class: 'small' }, 'На контрольной — ' + EXAM_TRIES + ' попытки на задачу, использовано ' + t.n + '.'));
+    area.append(el('div', { class: 'small' }, 'Ваши данные' + (fixed ? '' : ' (набор №' + ((r.set || 0) - base() + 1) + ')') + ':'), el('pre', {}, esc(r.ds)), el('div', { class: 'actions' }));
     const a = $('.actions', area);
     a.append(el('button', { class: 'link', on: { click: () => download(s.id + '.txt', r.ds) } }, 'Скачать файлом'),
       el('button', { class: 'link', on: { click: () => copy(r.ds) } }, 'Копировать'));
@@ -1975,7 +1978,7 @@ function examGate(m, l, ex, want) {
     m.appendChild(box); return;
   }
   box.innerHTML = '<h2>Контрольная идёт до ' + until + '</h2>' +
-    '<p>Введите код с доски. Войти можно один раз и только с этого устройства. Во время контрольной курс открыт, но уходы со страницы и вставка текста извне записываются.</p>' +
+    '<p>Введите код с доски. Войти можно один раз и только с этого устройства. Во время контрольной теория курса открыта, а «Инструменты» и запуск кода закрыты; уходы со страницы и вставка текста извне записываются. На задачу — ' + EXAM_TRIES + ' попытки.</p>' +
     (ex.require_seb && !inSEB() ? '<p class="result bad">Эту контрольную пишут в Safe Exam Browser: ' + sebLinks() + '.</p>' : '') +
     '<div class="filters"><label>Код <input class="exCode" inputmode="numeric" autocomplete="off" maxlength="6" pattern="[0-9]*" placeholder="6 цифр"></label></div>';
   const go = pbtn('Войти в контрольную', async () => {
@@ -3531,6 +3534,12 @@ function examWatch() {
     await myExams();
     if (examNow() !== was && (onTools() || CUR)) route();
   }, 30000);
+  document.addEventListener('visibilitychange', async () => {
+    if (document.hidden || (CUR && isCtrlLesson(CUR))) return;
+    const was = examNow();
+    await myExams();
+    if (examNow() !== was && (onTools() || CUR)) route();
+  });
 }
 const onTools = () => /^#tools(\/|$)/.test(location.hash);
 async function tools(sub, item) {
@@ -4037,11 +4046,11 @@ async function ktPage(box, l) {
   const drawStart = () => {
     ktBar(null);
     const sec = el('section', { class: 'pblock' }, '<h2>Пробная ' + esc(name) + '</h2>' +
-      '<p>Тренировочный вариант: те же ' + tasks.length + ' задач, что на паре, но с другими числами. <b>Баллы не идут в ведомость</b>, ответы никуда не отправляются — проверка сразу, здесь.</p>' +
+      '<p>Тренировочный вариант: те же ' + tasks.length + ' задач, что на паре, но с другими числами. <b>Баллы не идут в ведомость</b>, ответы не отправляются — проверка сразу, здесь; преподаватель видит только, что вы её прошли, и лучший итог.</p>' +
       '<ul class="small"><li>Общее время на всю работу — как на паре (35–40 минут); можно и без ограничения. Числа видны сразу под условием.</li>' +
       '<li>На задачу — ' + EXAM_TRIES + ' попытки, как на настоящей КТ; в балл идёт лучшая.</li>' +
       '<li>Решайте на бумаге, без калькулятора: на паре инструменты и Python на сайте будут закрыты.</li>' +
-      '<li>После — разбор: ваш ответ, верный ответ и ссылка на разбор задачи по шагам. Преподаватель видит только, что вы прошли пробную КТ, и лучший результат — в баллы он не идёт.</li></ul>' +
+      '<li>После — разбор: ваш ответ, верный ответ и ссылка на разбор задачи по шагам.</li></ul>' +
       '<div class="filters"><label>Время <select class="ktMin"><option value="40">40 минут</option><option value="60">60 минут</option><option value="90">90 минут</option><option value="0">без ограничения</option></select></label></div>');
     sec.appendChild(pbtn('Начать пробную КТ', () => {
       st = { v: ((st && st.v) || 0) + 1, min: +$('.ktMin', sec).value, start: Date.now(), tasks: {} };
