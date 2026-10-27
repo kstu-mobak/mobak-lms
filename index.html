@@ -115,7 +115,7 @@ button.primary:hover { background: var(--accent-hover); border-color: var(--acce
 button:disabled, button:disabled:hover { opacity: .5; cursor: default; }
 button.link { border: none; background: none; color: var(--accent); padding: 4px 6px; font-weight: 600; }
 button.link:hover { text-decoration: underline; }
-input[type=text], input[type=email], input[type=number], input[type=datetime-local], input[type=search], input[type=date], input[type=time], textarea, select { font: 500 16px var(--font); color: var(--text); background: var(--panel); border: var(--bw) solid var(--line2); border-radius: var(--r-sm); padding: 9px 12px; }
+input[type=text], input[type=email], input[type=password], input[type=number], input[type=datetime-local], input[type=search], input[type=date], input[type=time], textarea, select { font: 500 16px var(--font); color: var(--text); background: var(--panel); border: var(--bw) solid var(--line2); border-radius: var(--r-sm); padding: 9px 12px; }
 input:focus, textarea:focus, select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 ::selection { background: var(--accent-soft); }
@@ -138,6 +138,7 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 #expBtn { display: none; }
 .show-sm { display: none; }
 @media (max-width: 600px) { #toolsBtn { display: none; } }   /* на телефоне — в меню «⋯» и на главной */
+body.bare #toolsBtn { display: none; }   /* на экране входа инструменты не нужны */
 .layout { display: grid; grid-template-columns: 300px minmax(0, 1fr); min-height: calc(100vh - var(--top-h)); }
 nav.side { border-right: 1px solid var(--line); background: var(--panel); padding: 12px 10px 48px; overflow-y: auto; position: sticky; top: var(--top-h); height: calc(100vh - var(--top-h)); scrollbar-width: thin; }
 main { padding: 28px 40px 96px; width: 100%; min-width: 0; margin: 0 auto; max-width: 940px; }
@@ -321,7 +322,7 @@ table.grade.dl .src, table.grade.hist td { white-space: normal; }
 .ptabs > button { margin-left: auto; }
 @media (max-width: 600px) {
   .menu-btn, #moreBtn { min-height: 38px; }
-  .tool input, .tool select, .sbin + .actions select { min-height: 36px; }
+  .tool input, .tool select, .sbin + .actions select, .filters input[type=password] { min-height: 36px; }
   .ptabs > button, button.link { min-height: 36px; }
   :root[data-design] body .side a.ls.ls { padding-top: 9px; padding-bottom: 9px; }   /* сильнее правил оформлений ниже */
   :root[data-design="key"] .stepbar a { position: relative; }
@@ -802,7 +803,6 @@ kbd { font: 12px var(--mono); border: 1px solid var(--line); border-bottom-width
 <script>
 const PYODIDE = 'https://cdn.jsdelivr.net/pyodide/v0.26.4/full/';
 const KEY = 'mobak-lms-v1';
-const DS_LIMIT = 5 * 60 * 1000;  // как на Stepik: 5 минут на ответ после скачивания данных
 
 /* ---------- сервер (Supabase) ----------
    CONFIG вставляет lms/build.py из lms/config.json. Есть CONFIG — студент входит по почте, сдачи уходят на сервер,
@@ -1337,52 +1337,48 @@ R.dataset = (s, root) => {
   // КТ на контрольной: номера наборов начинаются с личного номера входа (salt), который сервер выдал при входе по коду, —
   // заранее свой вариант не посчитать. Сервер принимает наборы КТ только из этих номеров (exam_gate)
   const L = STEPMETA[s.id] && STEPMETA[s.id].lesson;
-  const base = () => L && isCtrlLesson(L) && EXAM && EXAM.salt && EXAM.section_id === L.mod.sectionId ? EXAM.salt : 0;
+  const fixed = !!(L && isCtrlLesson(L));   // в контрольных и диагностике вариант один — «другие числа» не выдаются
+  const base = () => fixed && EXAM && EXAM.salt && EXAM.section_id === L.mod.sectionId ? EXAM.salt : 0;
   if (base() && !(r.set >= base() && r.set < base() + 100)) { r.set = base(); delete r.ds; delete r.at; delete r.reply; save(); }
   const area = el('div', { class: 'dataset' });
   const stat = el('div', { class: 'pystat' }); paintPy(stat);
-  const getBtn = el('button', { class: 'primary' }, 'Скачать');
   const inp = el('input', { type: 'text', placeholder: 'Ваш ответ', class: 'answer', autocomplete: 'off' }); inp.value = r.reply || '';
   const send = el('button', { class: 'primary' }, 'Отправить');
-  const timer = el('span', { class: 'timer' });
   const box = el('div', { class: 'result', hidden: '' });
   const seed = () => S.uid + '|' + s.id + '|' + (r.set || 0);   // общий контракт с перепроверкой (lms/grader)
-  // время считается от выдачи на сервере; skew — поправка на расхождение часов компьютера с сервером
-  const left = () => r.at ? DS_LIMIT - (Date.now() + (r.skew || 0) - r.at) : 0;
-  let tick = null;
-  const paintTimer = () => {
-    const ms = left();
-    if (!r.at || r.ds === undefined) { timer.textContent = ''; return; }
-    if (ms <= 0) { timer.className = 'timer low'; timer.textContent = 'Время на ответ вышло — возьмите новый набор'; inp.disabled = send.disabled = true; clearInterval(tick); return; }
-    const m = Math.floor(ms / 60000), sec = Math.floor(ms % 60000 / 1000);
-    timer.className = 'timer' + (ms < 60000 ? ' low' : ''); timer.textContent = 'Осталось ' + m + ':' + String(sec).padStart(2, '0');
-  };
-  const show = () => {
+  // данные показываются сразу, время на ответ не ограничено. Выдача набора записывается на сервер (datasets_issued):
+  // так тот же набор строится на любом устройстве, а КТ принимает наборы только своего входа
+  let busy = false;
+  const show = err => {
     area.innerHTML = '';
-    if (r.ds === undefined) { inp.disabled = send.disabled = true; getBtn.textContent = 'Скачать'; return; }
-    inp.disabled = send.disabled = left() <= 0;
-    area.append(el('div', { class: 'small' }, 'Ваши данные (набор №' + ((r.set || 0) - base() + 1) + '):'), el('pre', {}, esc(r.ds)), el('div', { class: 'actions' }));
+    inp.disabled = send.disabled = r.ds === undefined;
+    if (r.ds === undefined) {
+      area.append(el('div', { class: 'small' }, err ? esc(err) : 'Готовлю ваши данные…' + (PY.state === 'ready' ? '' : ' При первом открытии загружается Python (около 10 МБ).')));
+      if (err) area.appendChild(el('div', { class: 'actions' })).appendChild(pbtn('Попробовать ещё раз', () => load()));
+      return;
+    }
+    area.append(el('div', { class: 'small' }, 'Ваши данные' + (fixed ? '' : ' (набор №' + ((r.set || 0) - base() + 1) + ')') + ':'), el('pre', {}, esc(r.ds)), el('div', { class: 'actions' }));
     const a = $('.actions', area);
-    a.append(el('button', { class: 'link', on: { click: () => download(s.id + '.txt', r.ds) } }, 'Скачать файл ещё раз'),
-      el('button', { class: 'link', on: { click: () => copy(r.ds) } }, 'Копировать'), timer);
-    getBtn.textContent = 'Новый набор';
-    clearInterval(tick); paintTimer(); tick = setInterval(() => { if (!document.body.contains(timer)) return clearInterval(tick); paintTimer(); }, 1000);
+    a.append(el('button', { class: 'link', on: { click: () => download(s.id + '.txt', r.ds) } }, 'Скачать файлом'),
+      el('button', { class: 'link', on: { click: () => copy(r.ds) } }, 'Копировать'));
+    if (!fixed) a.append(el('button', { class: 'link', title: 'Новые числа в той же задаче; в балл идёт лучший ответ', on: { click: () => load(true) } }, 'Другие числа'));
   };
-  const fetchDs = async () => {
-    getBtn.disabled = true;
+  const load = async fresh => {
+    if (busy) return;
+    busy = true;
     try {
-      if (r.ds !== undefined || r.at) { r.set = (r.set || 0) + 1; delete r.ds; delete r.at; inp.value = ''; box.hidden = true; }
+      if (fresh === true) { r.set = (r.set || 0) + 1; delete r.ds; delete r.at; inp.value = ''; box.hidden = true; show(); }
       const ds = await py('ds_get', [s.src, seed()]);
-      const iss = await API.issue(s, r.set || 0);
-      r.ds = ds; r.at = iss.issued_at; if (iss.skew !== null) r.skew = iss.skew; save(); show();
-      download(s.id + '.txt', ds);
-    } catch (e) { toast('Не получилось: ' + (e.timeout ? 'превышено время' : 'Python не загрузился')); }
-    getBtn.disabled = false;
+      if (!r.at) { const iss = await API.issue(s, r.set || 0); r.at = iss.issued_at; }   // уже выдан (другое устройство) — второй раз не записываем
+      r.ds = ds; save(); show();
+    } catch (e) {
+      const t = String((e && e.message) || '');
+      show(e.timeout ? 'Python не успел подготовить данные.' : /МОБАК:/.test(t) ? t.replace(/^.*МОБАК:\s*/, '') : 'Не получилось подготовить данные: ' + (t || 'нет связи'));
+    }
+    busy = false;
   };
-  getBtn.addEventListener('click', fetchDs);
   const go = async () => {
     if (!inp.value.trim()) return toast('Введите ответ');
-    if (left() <= 0) return toast('Время на ответ вышло — возьмите новый набор');
     send.disabled = true; send.textContent = 'Проверяем…';
     try {
       const res = JSON.parse(await py('ds_check', [s.src, seed(), inp.value]));
@@ -1390,16 +1386,14 @@ R.dataset = (s, root) => {
       API.submit(s, 'dataset', { reply: inp.value, set_no: r.set || 0 }, res.score, res.hint);
       resultBox(box, res.score, res.score === 1 ? 'Верно!' : res.score > 0 ? 'Частично верно: ' + fmt(res.score * s.cost) + ' из ' + ofBalls(s.cost) : 'Неверно', esc(res.hint || ''));
     } catch (e) { toast(e.timeout ? 'Превышено время проверки' : 'Ошибка проверки: ' + e.message); }
-    send.disabled = left() <= 0; send.textContent = 'Отправить';
+    send.disabled = false; send.textContent = 'Отправить';
   };
   inp.addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
   send.addEventListener('click', go);
-  root.append(el('div', { class: 'actions' }), area, inp, el('div', { class: 'actions' }), box, stat);
-  root.querySelectorAll('.actions')[0].append(getBtn);
-  root.querySelectorAll('.actions')[1].append(send);
+  const acts = el('div', { class: 'actions' }); acts.append(send);
+  root.append(area, inp, acts, box, stat);
   show();
-  // набор выдан на другом устройстве: данные строятся заново по тому же seed, новая выдача не нужна
-  if (r.at && r.ds === undefined) py('ds_get', [s.src, seed()]).then(ds => { r.ds = ds; save(); show(); }).catch(() => {});
+  if (r.ds === undefined) load();
 };
 
 function makeEditor(host, value, onChange) {
@@ -1807,7 +1801,8 @@ function loginScreen(msg, join) {
   const lead = $('.lead', box), form = el('div', { class: 'login-form' }), res = el('div', { class: 'result', hidden: '' });
   const say = (cls, html) => { res.className = 'result ' + cls; res.innerHTML = html; res.hidden = false; };
   const acts = (...b) => { const a = el('div', { class: 'actions' }); a.append(...b); return a; };
-  let email = '', timer = null, fio = (join && join.name) || '';
+  let email = '', timer = null, fio = (join && join.name) || '', pwMode = false;
+  try { pwMode = !join && localStorage.getItem(KEY + '-pw') === '1'; } catch (e) {}
   const send = async e => {
     const options = { emailRedirectTo: location.origin + location.pathname, shouldCreateUser: true };
     if (join) options.data = { invite: join.code, full_name: fio };   // триггер на auth.users пропустит почту не из списка с действующим кодом
@@ -1818,12 +1813,15 @@ function loginScreen(msg, join) {
   const askEmail = () => {
     clearInterval(timer);
     if (join) lead.innerHTML = 'Вы записываетесь на курс в группу <b>' + esc(join.group) + '</b>' + (join.term ? ' (' + esc(join.term) + ')' : '') + '. Укажите фамилию и имя, как в журнале, и почту — на неё придёт письмо с кодом для входа. Пароль не нужен.';
-    else lead.textContent = 'Введите почту, которую вы дали преподавателю. На неё придёт письмо с кодом для входа. Пароль не нужен.';
+    else lead.textContent = pwMode ? 'Почта и пароль, который вы задали в «Моём кабинете». Не задавали или забыли — войдите по коду из письма.'
+      : 'Введите почту, которую вы дали преподавателю. На неё придёт письмо с кодом для входа. Если задали пароль в «Моём кабинете» — можно войти по паролю.';
     form.innerHTML = '';
     const nm = join ? el('input', { type: 'text', class: 'answer', placeholder: 'Фамилия Имя', autocomplete: 'name', 'aria-label': 'Фамилия и имя', maxlength: '120' }) : null;
     if (nm) nm.value = fio;
     const inp = el('input', { type: 'email', class: 'answer', placeholder: 'почта@пример.ru', autocomplete: 'email', 'aria-label': 'Почта' }); inp.value = email;
-    const btn = el('button', { class: 'primary' }, join ? 'Записаться' : 'Получить код');
+    const btn = el('button', { class: 'primary' }, join ? 'Записаться' : pwMode ? 'Войти' : 'Получить код');
+    // вход по паролю — для тех, кто задал пароль в кабинете (запись по ссылке — только по коду: так подтверждается почта)
+    const pwd = join || !pwMode ? null : el('input', { type: 'password', class: 'answer', placeholder: 'Пароль', autocomplete: 'current-password', 'aria-label': 'Пароль', maxlength: '72' });
     const cons = el('label', { class: 'chk consent' }, '<input type="checkbox"> <span>Согласен(на) на обработку моих данных (ФИО, почта, ответы и баллы) для учёта успеваемости по курсу. <a href="#" class="ppLink">Подробнее</a></span>');
     try { $('input', cons).checked = !!localStorage.getItem(KEY + '-consent'); } catch (e) {}
     $('.ppLink', cons).onclick = e => { e.preventDefault(); privacyModal(); };
@@ -1837,17 +1835,27 @@ function loginScreen(msg, join) {
         saveJoin(Object.assign({}, join, { name: fio }));
       }
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)) return toast('Введите почту');
+      if (pwd) {
+        if (!pwd.value) { pwd.focus(); return toast('Введите пароль'); }
+        btn.disabled = true; btn.textContent = 'Входим…';
+        const { error } = await sb.auth.signInWithPassword({ email: e, password: pwd.value });
+        btn.disabled = false; btn.textContent = 'Войти';
+        if (error) { say('bad', /invalid login credentials/i.test(error.message || '') ? 'Неверная почта или пароль. Пароль задаётся в «Моём кабинете» после входа по коду; не задавали или забыли — войдите по коду из письма.' : 'Не получилось войти: ' + esc(errText(error)) + '.'); pwd.select(); return; }
+        email = e; location.reload(); return;
+      }
       btn.disabled = true; btn.textContent = 'Отправляем…';
       const ok = await send(e);
       btn.disabled = false; btn.textContent = join ? 'Записаться' : 'Получить код';
       if (ok) { email = e; askCode(); }
     };
-    inp.addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') (pwd ? pwd.focus() : go()); });
+    if (pwd) pwd.addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
     if (nm) nm.addEventListener('keydown', e => { if (e.key === 'Enter') inp.focus(); });
     btn.addEventListener('click', go);
     const extra = [];
     if (join) extra.push(el('button', { class: 'link', on: { click: () => { doneJoin(); loginScreen(); } } }, 'Я уже в списке группы — просто войти'));
-    form.append(...(nm ? [nm] : []), inp, cons, acts(btn, ...extra)); (nm && !fio ? nm : inp).focus();
+    else extra.push(el('button', { class: 'link', on: { click: () => { email = inp.value.trim(); pwMode = !pwMode; try { localStorage.setItem(KEY + '-pw', pwMode ? '1' : ''); } catch (x) {} res.hidden = true; askEmail(); } } }, pwMode ? 'Войти по коду из письма' : 'Войти по паролю'));
+    form.append(...(nm ? [nm] : []), inp, ...(pwd ? [pwd] : []), cons, acts(btn, ...extra)); (nm && !fio ? nm : pwd && inp.value ? pwd : inp).focus();
   };
   const askCode = () => {
     lead.innerHTML = 'Код отправлен на <b>' + esc(email) + '</b>. Введите код из письма — или просто откройте ссылку из него. Письма нет несколько минут — проверьте «Спам» и «Промоакции».';
@@ -3300,6 +3308,20 @@ async function cabinet() {
     toast('Сохранено'); cabinet();
   }, true));
   m.appendChild(set);
+  // пароль задаётся только после входа по коду (так почта уже подтверждена); дальше можно входить по почте и паролю
+  const pw = el('section', { class: 'pblock' }, '<h2>Пароль для входа</h2><p class="small">Задайте пароль — тогда можно входить по почте и паролю, без кода из письма. Это удобно в Safe Exam Browser, где почту не открыть. ' +
+    'Не меньше 8 символов; не берите пароль от почты и других сайтов. Забыли — войдите по коду из письма и задайте новый.</p>' +
+    '<div class="filters"><label>Новый пароль <input type="password" class="pw1" autocomplete="new-password" maxlength="72" size="18"></label><label>Ещё раз <input type="password" class="pw2" autocomplete="new-password" maxlength="72" size="18"></label></div><div class="actions"></div>');
+  $('.actions', pw).appendChild(pbtn('Сохранить пароль', async () => {
+    const a = $('.pw1', pw).value, b = $('.pw2', pw).value, nick = (ME.email || '').split('@')[0].toLowerCase();
+    if (a.length < 8) return toast('Пароль — не меньше 8 символов');
+    if (a !== b) return toast('Пароли не совпадают');
+    if ((nick.length >= 4 && a.toLowerCase().includes(nick)) || /^(.)\1+$|^(12345678|123456789|1234567890|qwerty|password|йцукен)/i.test(a)) return toast('Слишком простой пароль');
+    const { error } = await sb.auth.updateUser({ password: a });
+    if (error) return toast(/same/i.test(error.message || '') ? 'Это и есть ваш нынешний пароль' : 'Пароль не сохранён: ' + errText(error));
+    $('.pw1', pw).value = $('.pw2', pw).value = ''; toast('Пароль сохранён: теперь можно входить по почте и паролю');
+  }, true));
+  m.appendChild(pw);
 
   m.appendChild(el('h2', {}, 'Последние сдачи'));
   if (!sub.data.length) { m.appendChild(el('p', { class: 'small' }, 'Сдач пока нет.')); return; }
@@ -3360,7 +3382,7 @@ function helpModal() {
     '<p><b>Устная проверка.</b> Вкладка подбирает, кого вызвать на паре по модулю: сходство решений, «ЛР высоко / КТ низко», случайная выборка. «Не допущен» — баллы за работу не идут в рейтинг до пересдачи.</p>' +
     '<p><b>Аналитика и журнал.</b> Активность по дням, самые трудные шаги, кто и что менял.</p>' +
     '<p><b>Перепроверка.</b> Сервер перепроверяет сдачи раз в час с 08:00 до 23:00 по Бишкеку. Если сдачи ждут дольше 2 часов, на вкладке «Группы» появится предупреждение.</p>'
-    : '<p><b>Вход.</b> Введите почту, которую дали преподавателю (или запишитесь по ссылке из чата группы), и код из письма. Пароль не нужен.</p>' +
+    : '<p><b>Вход.</b> Введите почту, которую дали преподавателю (или запишитесь по ссылке из чата группы), и код из письма. Можно задать пароль в «Моём кабинете» — тогда входите по почте и паролю.</p>' +
     '<p><b>Сдача.</b> Решайте задачи на страницах уроков. Сразу виден предварительный балл; сервер перепроверяет решения раз в час, проверенный балл — в «Моём кабинете».</p>' +
     '<p><b>Сроки.</b> Баллы идут только за сдачи до срока вашей группы; контрольные — только на паре. Сроки, продления и ближайший срок — в кабинете.</p>' +
     '<p><b>Устная проверка.</b> Преподаватель может попросить объяснить свой код. Если не получилось — работа «не допущена», её баллы не идут в рейтинг до пересдачи.</p>' +
@@ -3947,7 +3969,7 @@ async function ktPage(box, l) {
     ktBar(null);
     const sec = el('section', { class: 'pblock' }, '<h2>Пробная ' + esc(name) + '</h2>' +
       '<p>Тренировочный вариант: те же ' + tasks.length + ' задач, что на паре, но с другими числами. <b>Баллы не идут в ведомость</b>, ответы никуда не отправляются — проверка сразу, здесь.</p>' +
-      '<ul class="small"><li>На всю работу — общее время (на паре 35–40 минут), на каждую задачу после скачивания данных — 5 минут, как на настоящей КТ.</li>' +
+      '<ul class="small"><li>Общее время на всю работу — как на паре (35–40 минут); можно и без ограничения. Числа видны сразу под условием.</li>' +
       '<li>Решайте на бумаге, без калькулятора: на паре инструменты и Python на сайте будут закрыты.</li>' +
       '<li>После — разбор: ваш ответ, верный ответ и ссылка на разбор задачи по шагам.</li></ul>' +
       '<div class="filters"><label>Время <select class="ktMin"><option value="40">40 минут</option><option value="60">60 минут</option><option value="90">90 минут</option><option value="0">без ограничения</option></select></label></div>');
@@ -3962,24 +3984,16 @@ async function ktPage(box, l) {
   const drawRun = () => {
     const deadline = st.min ? st.start + st.min * 60000 : 0;
     ktBar('Пробная ' + esc(name) + (deadline ? ' · осталось <b class="ktLeft">' + mmss(deadline - Date.now()) + '</b>' : '') + '<span class="w"> · без баллов</span>', finish);
-    box.appendChild(el('p', { class: 'small' }, 'Пробный вариант №' + st.v + '. Скачайте данные задачи — с этого момента на неё 5 минут. Порядок любой.'));
-    const ticks = [];
+    box.appendChild(el('p', { class: 'small' }, 'Пробный вариант №' + st.v + '. Ваши числа — под условием каждой задачи. Порядок любой.'));
     tasks.forEach((s, k) => {
       const r = st.tasks[s.id] = st.tasks[s.id] || {};
       const card = el('section', { class: 'step kt cur' });   // cur: в «Ключе» и «Рабочем месте» видна только текущая карточка шага
       card.append(el('div', { class: 'step-h' }, '<span class="num">' + (k + 1) + '</span><span class="kind"><span class="t">' + s.cost + ' ' + plural(s.cost, 'балл', 'балла', 'баллов') + '</span></span>'),
         el('div', { class: 'body' }, s.html));
-      const area = el('div'), acts = el('div', { class: 'actions' }), res = el('div', { class: 'result', hidden: '' }), tl = el('span', { class: 'timer' });
+      const area = el('div'), acts = el('div', { class: 'actions' }), res = el('div', { class: 'result', hidden: '' });
       const inp = el('input', { type: 'text', class: 'answer', placeholder: 'Ваш ответ', autocomplete: 'off' });
-      const get = pbtn('Скачать данные', async () => {
-        if (await pyBlocked()) return;
-        get.disabled = true; get.textContent = 'Готовлю данные…';
-        try { r.ds = await py('ds_get', [s.src, ktSeed(st, s)]); r.at = Date.now(); ktSave(l, st); paint(); }
-        catch (e) { toast('Не удалось подготовить данные: ' + e.message); get.disabled = false; get.textContent = 'Скачать данные'; }
-      }, true);
       const send = pbtn('Ответить', async () => {
         if (!inp.value.trim()) return toast('Введите ответ');
-        if (DS_LIMIT - (Date.now() - r.at) <= 0) return paint();
         if (await pyBlocked()) return;
         send.disabled = true;
         try {
@@ -3988,32 +4002,30 @@ async function ktPage(box, l) {
         } catch (e) { toast('Ошибка проверки: ' + e.message); send.disabled = false; }
       }, true);
       inp.addEventListener('keydown', e => { if (e.key === 'Enter') send.click(); });
-      const left = () => DS_LIMIT - (Date.now() - r.at);
-      const paintTimer = () => { tl.className = 'timer' + (left() < 60000 ? ' low' : ''); tl.textContent = 'на задачу: ' + mmss(left()); };
       const paint = () => {
         area.innerHTML = ''; acts.innerHTML = ''; res.hidden = true;
-        if (r.ds !== undefined) area.append(el('div', { class: 'small' }, 'Данные:'), el('pre', {}, esc(r.ds)));
+        if (r.ds === undefined) { area.append(el('div', { class: 'small' }, 'Готовлю данные…')); return; }
+        area.append(el('div', { class: 'small' }, 'Ваши данные:'), el('pre', {}, esc(r.ds)));
         if (r.score !== undefined) {
           resultBox(res, r.score, r.score === 1 ? 'Верно' : r.score > 0 ? 'Частично: ' + fmt(r.score * s.cost) + ' из ' + s.cost : 'Неверно',
             'Ваш ответ: <code>' + esc(r.reply) + '</code>' + (r.hint ? '<br>' + esc(r.hint) : '') + '<br><span class="small">Верный ответ и разбор — после завершения.</span>');
           return;
         }
-        if (r.ds === undefined) { acts.append(get); return; }
-        if (left() <= 0) { resultBox(res, 0, 'Время на задачу вышло', 'После скачивания данных на ответ 5 минут.'); return; }
-        paintTimer(); acts.append(inp, send, tl);
+        acts.append(inp, send);
       };
-      ticks.push(() => { if (r.ds !== undefined && r.score === undefined && document.body.contains(tl)) { if (left() <= 0) paint(); else paintTimer(); } });
       card.append(area, acts, res); box.appendChild(card);
       paint();
+      if (r.ds === undefined) py('ds_get', [s.src, ktSeed(st, s)]).then(ds => { r.ds = ds; ktSave(l, st); if (document.body.contains(card)) paint(); },
+        e => { area.innerHTML = '<div class="small">Не удалось подготовить данные: ' + esc(e.message || 'нет связи') + '. Обновите страницу.</div>'; });
     });
     const end = el('div', { class: 'actions' }); end.appendChild(pbtn('Завершить пробную КТ', () => { if (confirm('Завершить пробную КТ и посмотреть разбор?')) finish(); }));
     box.appendChild(end);
     clearInterval(KT_TICK);
+    if (!deadline) return;
     KT_TICK = setInterval(() => {
       if (!document.body.contains(box)) { clearInterval(KT_TICK); KT_TICK = null; ktBar(null); return; }
-      if (deadline && Date.now() >= deadline) { toast('Время пробной КТ вышло'); return finish(); }
+      if (Date.now() >= deadline) { toast('Время пробной КТ вышло'); return finish(); }
       const t = $('#ktbar .ktLeft'); if (t) t.textContent = mmss(deadline - Date.now());
-      ticks.forEach(f => f());
     }, 1000);
   };
 
