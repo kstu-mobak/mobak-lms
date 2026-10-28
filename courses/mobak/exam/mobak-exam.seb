@@ -7,7 +7,7 @@
   <key>originatorVersion</key>
   <string>SEB_Win_3.6</string>
   <key>startURL</key>
-  <string>https://kstu-mobak.github.io/mobak-lms/#me</string>
+  <string>https://kstu-mobak.github.io/mobak-lms/courses/mobak/#me</string>
   <key>sebConfigPurpose</key>
   <integer>0</integer>
   <key>sendBrowserExamKey</key>
@@ -90,6 +90,12 @@
       <key>active</key><true/>
       <key>regex</key><false/>
       <key>expression</key><string>cdnjs.cloudflare.com/ajax/libs/codemirror/*</string>
+      <key>action</key><integer>1</integer>
+    </dict>
+    <dict>
+      <key>active</key><true/>
+      <key>regex</key><false/>
+      <key>expression</key><string>challenges.cloudflare.com/*</string>
       <key>action</key><integer>1</integer>
     </dict>
   </array>
