@@ -523,7 +523,8 @@ body.bare main { max-width: 620px; padding-top: 12vh; }
 @media (min-width: 1100px) {
   :root[data-design="key"] main.in-lesson.wide { max-width: 1240px; }
   :root[data-design="key"] .step.split.cur { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 0 32px; align-items: start; }
-  :root[data-design="key"] .step.split .stepnav { grid-column: 1 / -1; }
+  /* кнопки — только под условием: липкая колонка кода при прокрутке съезжает вниз в пределах шага и закрыла бы их */
+  :root[data-design="key"] .step.split .stepnav { grid-column: 1; }
   :root[data-design="key"] .step.split .work { position: sticky; top: calc(var(--top-h) + 44px); display: flex; flex-direction: column; padding-bottom: 20px; }
   :root[data-design="key"] .step.split .editor { margin-top: 0; }
   :root[data-design="key"] .step.split .work > .actions { order: 1; }
