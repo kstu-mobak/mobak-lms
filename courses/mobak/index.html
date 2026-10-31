@@ -697,7 +697,6 @@ kbd { font: 12px var(--mono); border: 1px solid var(--line); border-bottom-width
   :root[data-design="ide"] .seg button { flex: 1; border: none; border-radius: 0; background: none; color: var(--muted); padding: 11px 0; font-size: 14px; }
   :root[data-design="ide"] .seg button.on { color: var(--text); box-shadow: inset 0 -2px var(--accent); }
   :root[data-design="ide"] .step.split[data-v="cond"] .work, :root[data-design="ide"] .step.split[data-v="code"] .cond, :root[data-design="ide"] .step.split[data-v="out"] .cond { display: none; }
-  :root[data-design="ide"] .step.split:not([data-v="cond"]) .stepnav { display: none; }
   :root[data-design="ide"] .step.split[data-v="out"] .work > .editor { display: none; }
   .ws-grid { grid-template-columns: minmax(0, 1fr); }
 }
@@ -981,6 +980,17 @@ const got = s => s.cost * sc(s.id);
 const isTask = s => s.t !== 'text';
 function lessonStat(l) { let g = 0, m = 0, done = 0, n = 0; l.steps.forEach(s => { if (!isTask(s)) return; n++; g += got(s); m += s.cost; if (sc(s.id) === 1) done++; }); return { g, m, done, n }; }
 function modStat(M) { let g = 0, m = 0; M.lessons.forEach(l => { const t = lessonStat(l); g += t.g; m += t.m; }); return { g, m }; }
+// теория прочитана: шаг открыт на этом устройстве (seen) или дальше в уроке уже есть сдачи (прогресс с другого устройства).
+// Урок без задач пройден, когда прочитаны все шаги или начат один из следующих уроков. В баллы не идёт.
+const attempted = s => { const r = S.steps[s.id]; return !!(r && (r.att || r.score || r.vscore !== undefined)); };
+const readStep = s => !!(S.steps[s.id] || {}).seen || s.lesson.steps.slice(s.num).some(x => isTask(x) && attempted(x));
+const lessonRead = l => l.steps.every(readStep) || LESSONS.slice(LESSONS.indexOf(l) + 1).some(x => x.steps.some(s => isTask(s) && attempted(s)));
+function markSeen(s) {
+  if (!s || isTask(s) || (S.steps[s.id] || {}).seen) return false;
+  rec(s.id).seen = 1; save();
+  const a = document.getElementById('sb-' + s.id); if (a) a.classList.add('full');
+  return true;
+}
 const totalGot = () => Object.values(STEPMETA).reduce((a, s) => a + got(s), 0);
 
 /* ---------- Python в браузере (Pyodide в Web Worker) ---------- */
@@ -1385,7 +1395,7 @@ R.dataset = (s, root) => {
   // КТ на контрольной: номера наборов начинаются с личного номера входа (salt), который сервер выдал при входе по коду, —
   // заранее свой вариант не посчитать. Сервер принимает наборы КТ только из этих номеров (exam_gate)
   const L = STEPMETA[s.id] && STEPMETA[s.id].lesson;
-  const fixed = !!(L && isCtrlLesson(L));   // в контрольных и диагностике вариант один — «другие числа» не выдаются
+  const fixed = !!(L && (isCtrlLesson(L) || /^Входная/.test(L.title)));   // в контрольных и диагностике вариант один — «другие числа» не выдаются
   const base = () => fixed && EXAM && EXAM.salt && EXAM.section_id === L.mod.sectionId ? EXAM.salt : 0;
   if (base() && !(r.set >= base() && r.set < base() + 100)) { r.set = base(); delete r.ds; delete r.at; delete r.reply; save(); }
   const area = el('div', { class: 'dataset' });
@@ -1569,7 +1579,7 @@ function badgeText(s) {
   const t = s.cost ? fmt(g) + ' из ' + ofBalls(s.cost) : sc(s.id) ? 'выполнено' : 'без баллов';
   return t + (SERVER && r.att ? (r.pending ? ' · ждёт проверки' : r.vscore !== undefined ? ' · проверено' : '') : '');
 }
-const stCls = id => { const v = sc(id); return !v ? '' : v === 1 ? 'full' : 'part'; };
+const stCls = id => { const s = STEPMETA[id]; if (s && !isTask(s)) return readStep(s) ? 'full' : ''; const v = sc(id); return !v ? '' : v === 1 ? 'full' : 'part'; };
 function refreshChrome(s) {
   const tg = totalGot();
   $('#score').innerHTML = (S.name ? '<span class="nm">' + esc(S.name) + '</span>' : '') + '<span class="mini"><i style="width:' + (100 * tg / CAT.total).toFixed(1) + '%"></i></span><span><b>' + fmt(tg) + '</b> из ' + CAT.total + '</span>';
@@ -1611,12 +1621,12 @@ function drawSide() {
     h.addEventListener('click', () => { open ? OPEN.delete(M.n) : OPEN.add(M.n); if (CUR && CUR.mod === M && open) OPEN.delete(M.n); drawSide(); });
     box.appendChild(h);
     M.lessons.forEach(l => {
-      const t = lessonStat(l), dot = !t.n ? '' : t.done === t.n ? 'full' : t.g > 0 ? 'part' : '';
+      const dot = { done: 'full', part: 'part' }[lstate(l)] || '';
       box.appendChild(el('a', { class: 'ls' + (CUR === l ? ' cur' : ''), href: '#' + l.key }, '<span class="dot ' + dot + '"></span><span>' + esc(l.title) + '</span>'));
       if (CUR === l) {
         const files = el('div', { class: 'files' });
         l.steps.forEach(s => files.appendChild(el('a', { class: STEP === s.num ? 'cur' : '', href: '#' + l.key + '/' + s.num, on: { click: e => { if (!oneStep()) return; e.preventDefault(); showStep(s.num); document.body.classList.remove('nav-open'); } } },
-          fi(s) + '<span class="nm">' + esc(fname(s).replace(/\.[a-z]+$/, '')) + '</span>' + (sc(s.id) === 1 ? '<span class="ok">✓</span>' : '<span>.' + EXT[s.t] + '</span>'))));
+          fi(s) + '<span class="nm">' + esc(fname(s).replace(/\.[a-z]+$/, '')) + '</span>' + (stCls(s.id) === 'full' ? '<span class="ok">✓</span>' : '<span>.' + EXT[s.t] + '</span>'))));
         box.appendChild(files);
       }
     });
@@ -1625,7 +1635,7 @@ function drawSide() {
 }
 
 const TASK_LESSONS = () => LESSONS.filter(l => lessonStat(l).n);
-const lstate = l => { const t = lessonStat(l); return !t.n ? 'none' : t.done === t.n ? 'done' : t.g > 0 ? 'part' : 'new'; };
+const lstate = l => { const t = lessonStat(l); return !t.n ? (lessonRead(l) ? 'done' : 'none') : t.done === t.n ? 'done' : t.g > 0 || t.done > 0 ? 'part' : 'new'; };
 const nextLesson = () => LESSONS.find(l => { const s = lessonStat(l); return s.n && s.done < s.n; }) || LESSONS[0];
 function testBanner(m) {
   if (CAT.test) m.appendChild(el('div', { class: 'result bad' }, '<div class="ttl">Тестовая сборка</div>В данных есть эталонные решения — эту сборку нельзя выкладывать студентам.'));
@@ -1781,12 +1791,24 @@ async function lesson(l, want) {
   const first = l.steps.find(s => isTask(s) && sc(s.id) !== 1);
   const n = want && want <= l.steps.length ? want : first ? Math.max(1, first.num - (l.steps[first.num - 2] && !isTask(l.steps[first.num - 2]) ? 1 : 0)) : 1;
   if (oneStep()) showStep(want ? n : (lessonStat(l).g ? n : 1), true);
-  else { window.scrollTo(0, 0); if (want) setTimeout(() => goStep(want), 50); }
+  else {
+    window.scrollTo(0, 0); if (want) setTimeout(() => goStep(want), 50);
+    // урок одной страницей («Тетрадь»): теория прочитана, когда её конец показался на экране
+    if (window.IntersectionObserver) {
+      const io = new IntersectionObserver(es => es.forEach(e => {
+        if (!e.isIntersecting || CUR !== l) return;
+        io.unobserve(e.target);
+        if (markSeen(STEPMETA[e.target.dataset.id])) drawSide();
+      }));
+      m.querySelectorAll('section.step[data-t="text"]').forEach(sec => { const end = el('i', { 'data-id': sec.id.slice(2) }); sec.appendChild(end); io.observe(end); });
+    }
+  }
   if (steps.some(s => s.t === 'code' || s.t === 'dataset')) pyStart().catch(() => {});
 }
 function showStep(n, quiet) {
   const m = $('#main'); if (!CUR) return;
   n = Math.max(1, Math.min(n, CUR.steps.length)); STEP = n;
+  markSeen(CUR.steps[n - 1]);
   m.querySelectorAll('section.step').forEach(sec => sec.classList.toggle('cur', +sec.dataset.n === n));
   m.querySelectorAll('.stepbar a').forEach(a => a.classList.toggle('cur', +a.dataset.n === n));
   history.replaceState(null, '', '#' + CUR.key + '/' + n);
@@ -2079,11 +2101,19 @@ async function examCheck(m, l, want) {
     m.appendChild(el('section', { class: 'pblock examgate' }, '<h2>Контрольная откроется на паре</h2><p>Когда преподаватель её начнёт, обновите страницу и введите код с доски. ' +
       (/КТ-\d/.test(l.title) ? 'А пока — <a href="#tools/kt/' + l.key + '">пробная ' + esc(l.title.replace(/\..*$/, '')) + '</a> с таймером и без баллов. ' : '') +
       'Если контрольную пишут в Safe Exam Browser, подготовьте его заранее: ' + sebLinks() + '.</p>'));
+    lessonLinks(m, l);
     return true;
   }
   if (!ex.joined || ex.device !== DEVICE) { examGate(m, l, ex, want); return true; }
   startExamMode(ex);
   return false;
+}
+// закрытый урок контрольной — не тупик: переход к соседним урокам
+function lessonLinks(m, l) {
+  const li = LESSONS.indexOf(l), prev = LESSONS[li - 1], next = LESSONS[li + 1], acts = el('div', { class: 'actions' });
+  if (prev) acts.appendChild(pbtn('← ' + prev.title, () => { location.hash = prev.key; }));
+  if (next) acts.appendChild(pbtn('Следующий урок: ' + next.title, () => { location.hash = next.key; }, true));
+  m.appendChild(acts);
 }
 
 // ошибки сайта у вошедших — в client_errors (руководитель видит их в «Журнале»); не больше 10 за загрузку
@@ -2103,7 +2133,7 @@ const WEIGHTS = (CONFIG && CONFIG.weights) || { week: 10, prac: 10, lab: 40, ctr
 function category(lesson) {
   if (CAT && CAT.cats && CAT.cats[lesson]) return CAT.cats[lesson];
   if (lesson.startsWith('Итоговый тест')) return 'test';
-  if (/КТ-\d|Входная/.test(lesson)) return 'ctrl';
+  if (/КТ-\d/.test(lesson)) return 'ctrl';   // входная диагностика — не контрольная: без баллов и открыта всегда
   if (lesson.startsWith('ЛР-')) return 'lab';
   if (/^П\d/.test(lesson)) return 'prac';
   if (lesson.startsWith('Итоговая работа')) return 'final';
