@@ -7,12 +7,21 @@
 <title>МОБАК — курс</title>
 <meta name="description" content="МОБАК — курс «Математические основы и базовые алгоритмы криптографии» КГТУ им. И. Раззакова: уроки, задачи с проверкой кода в браузере, сроки и рейтинг.">
 <script>
-// оформление (key | ide | note) и тема — до отрисовки; шрифты грузятся только для выбранного оформления (fonts/ на своём сайте)
+// оформление (key | ide), палитра и тема — до отрисовки; шрифты грузятся только для выбранного оформления (fonts/ на своём сайте)
 (function () {
-  var K = 'mobak-lms-v1', D = { key: 1, ide: 1, note: 1 }, root = document.documentElement, d = null, t = null;
-  try { d = new URLSearchParams(location.search).get('design'); if (D[d]) localStorage.setItem(K + '-design', d); else d = localStorage.getItem(K + '-design'); t = localStorage.getItem(K + '-theme'); } catch (e) {}
+  var K = 'mobak-lms-v1', D = { key: 1, ide: 1 }, root = document.documentElement, d = null, t = null;
+  try {
+    d = new URLSearchParams(location.search).get('design'); if (D[d]) localStorage.setItem(K + '-design', d); else d = localStorage.getItem(K + '-design');
+    if (d === 'note') { localStorage.setItem(K + '-design', 'key'); localStorage.setItem(K + '-note-gone', '1'); }   // «Тетрадь» убрана 08.11.2026 — её место занял «Ключ»
+    t = localStorage.getItem(K + '-theme');
+  } catch (e) {}
   root.dataset.design = D[d] ? d : 'key';
   if (t) root.dataset.theme = t;
+  window.applyPalette = function () {   // у каждого оформления своя палитра: K-palette-key, K-palette-ide; нет записи — основная
+    var p = null; try { p = localStorage.getItem(K + '-palette-' + root.dataset.design); } catch (e) {}
+    if (p && /^[a-z]{2,12}$/.test(p)) root.dataset.palette = p; else delete root.dataset.palette;
+  };
+  window.applyPalette();
   var done = {};
   window.loadDesignFonts = function (x) {
     if (done[x] || !D[x]) return; done[x] = 1;
@@ -29,7 +38,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js" integrity="sha384-GFr3yTh5lJznCbZfpTtXnwboFsxqtTQoeTZCRHhE0579KrRmlCzen5AA8ohaB5ug" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <meta name="referrer" content="no-referrer">
 <style>
-/* Три оформления одного сайта: data-design = key («Ключ», по умолчанию) | ide («Рабочее место») | note («Тетрадь»).
+/* Два оформления одного сайта: data-design = key («Ключ», по умолчанию) | ide («Рабочее место»); у каждого — палитры (data-palette).
    Логика и разметка шагов общие; оформления меняют токены ниже и раскладку (блоки «ОФОРМЛЕНИЕ …» в конце). */
 :root, :root[data-design="key"] {
   --bg: #f6f5fb; --panel: #ffffff; --panel2: #f0eef8; --text: #19162e; --muted: #5e5a78; --faint: #6c697f; --line: #e4e1f0; --line2: #d3cfe4;
@@ -41,7 +50,7 @@
   --r: 18px; --r-sm: 12px; --btn-r: 14px; --top-h: 60px; --shadow: none; --shadow-lg: 0 16px 40px rgba(25,22,46,.18); --bw: 2px;
   color-scheme: light;
 }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]):not([data-design="ide"]):not([data-design="note"]), :root[data-design="key"]:not([data-theme="light"]) {
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]):not([data-design="ide"]), :root[data-design="key"]:not([data-theme="light"]) {
   --bg: #110f1e; --panel: #1a1730; --panel2: #221e3b; --text: #eceaf6; --muted: #a29fba; --faint: #8e8aaa; --line: #2e2a48; --line2: #3b3659;
   --accent: #9d8cff; --accent-hover: #b3a6ff; --accent-soft: #2a2450; --on-accent: #110f1e;
   --ok: #4cd68a; --ok-soft: #173627; --warn: #f0b356; --warn-soft: #3a2d16; --bad: #ff7a7e; --bad-soft: #3d1d24; --code-bg: #15132a;
@@ -69,29 +78,37 @@
   --ok: #1b7a48; --ok-soft: #e2f3e9; --warn: #a15f00; --warn-soft: #fbefdc; --bad: #bf3a30; --bad-soft: #fbe7e5; --code-bg: #fbfbfc;
   --hl-k: #8a3fc4; --hl-s: #2b7a3d; --hl-n: #a15f00; --hl-b: #0b6f93; --hl-c: #7b8494; --shadow-lg: 0 12px 32px rgba(29,35,45,.18); color-scheme: light;
 }
-/* «Тетрадь» */
-:root[data-design="note"] {
-  --bg: #fbfcfe; --panel: #ffffff; --panel2: #f1f5fa; --text: #1c2b4a; --muted: #5d6679; --faint: #666e7d; --line: #cfd8e5; --line2: #b9c4d4; --grid: #e6edf6;
-  --accent: #1c2b4a; --accent-hover: #d2423b; --accent-soft: #e8eef8; --on-accent: #ffffff; --rule: #d2423b;
-  --ok: #23774a; --ok-soft: #e4f2ea; --warn: #9a5a00; --warn-soft: #fbefdc; --bad: #c2362f; --bad-soft: #fbe9e7; --code-bg: #f1f5fa;
-  --bit: #d2423b; --bit-ink: #fff;
-  --hl-k: #8a2be2; --hl-s: #23774a; --hl-n: #b5530a; --hl-b: #2b59c3; --hl-c: #808a9c;
-  --font: "PT Serif", Georgia, "Times New Roman", serif; --display: "PT Serif", Georgia, serif; --ui: "PT Sans", "Segoe UI", system-ui, sans-serif; --mono: "PT Mono", ui-monospace, Consolas, monospace;
-  --r: 4px; --r-sm: 4px; --btn-r: 4px; --top-h: 54px; --shadow: none; --shadow-lg: 0 12px 32px rgba(28,43,74,.2); --bw: 1.5px;
-  color-scheme: light;
-}
-@media (prefers-color-scheme: dark) { :root[data-design="note"]:not([data-theme="light"]) {
-  --bg: #121824; --panel: #161e2c; --panel2: #1b2435; --text: #dfe5ef; --muted: #98a2b5; --faint: #858ea0; --line: #2c374b; --line2: #3a4760; --grid: #1a2232;
-  --accent: #dfe5ef; --accent-hover: #ff7468; --accent-soft: #1f2a3e; --on-accent: #121824; --rule: #ff7468;
-  --ok: #6fd39a; --ok-soft: #173024; --warn: #f0b356; --warn-soft: #3a2d16; --bad: #ff7468; --bad-soft: #3a1f22; --code-bg: #182132;
-  --hl-k: #d6a3ff; --hl-s: #8fe0ad; --hl-n: #ffb37a; --hl-b: #9dbcff; --hl-c: #7a8498; --shadow-lg: 0 12px 32px rgba(0,0,0,.5); color-scheme: dark; } }
-:root[data-design="note"][data-theme="dark"] {
-  --bg: #121824; --panel: #161e2c; --panel2: #1b2435; --text: #dfe5ef; --muted: #98a2b5; --faint: #858ea0; --line: #2c374b; --line2: #3a4760; --grid: #1a2232;
-  --accent: #dfe5ef; --accent-hover: #ff7468; --accent-soft: #1f2a3e; --on-accent: #121824; --rule: #ff7468;
-  --ok: #6fd39a; --ok-soft: #173024; --warn: #f0b356; --warn-soft: #3a2d16; --bad: #ff7468; --bad-soft: #3a1f22; --code-bg: #182132;
-  --hl-k: #d6a3ff; --hl-s: #8fe0ad; --hl-n: #ffb37a; --hl-b: #9dbcff; --hl-c: #7a8498; --shadow-lg: 0 12px 32px rgba(0,0,0,.5); color-scheme: dark;
-}
 
+/* ПАЛИТРЫ — создаёт lms/tools/palettes.py (там же проверка контраста); вручную не править */
+/* «Ключ» · Море */
+:root[data-design="key"][data-palette="sea"] { --bg: #f3f7fb; --panel: #ffffff; --panel2: #e9f1f8; --text: #0f1d2e; --muted: #4f6075; --faint: #5a6879; --line: #dce6f0; --line2: #c8d6e4; --accent: #0a62bd; --accent-hover: #08519c; --accent-soft: #e2eefb; --on-accent: #ffffff; --code-bg: #f5f9fc; color-scheme: light; }
+@media (prefers-color-scheme: dark) { :root[data-design="key"][data-palette="sea"]:not([data-theme="light"]) { --bg: #0b1520; --panel: #111e2c; --panel2: #172738; --text: #e6eef7; --muted: #9fb1c4; --faint: #8d9fb3; --line: #22344a; --line2: #2d4360; --accent: #5aaeff; --accent-hover: #84c2ff; --accent-soft: #12304d; --on-accent: #0b1520; --code-bg: #0e1a27; color-scheme: dark; } }
+:root[data-design="key"][data-palette="sea"][data-theme="dark"] { --bg: #0b1520; --panel: #111e2c; --panel2: #172738; --text: #e6eef7; --muted: #9fb1c4; --faint: #8d9fb3; --line: #22344a; --line2: #2d4360; --accent: #5aaeff; --accent-hover: #84c2ff; --accent-soft: #12304d; --on-accent: #0b1520; --code-bg: #0e1a27; color-scheme: dark; }
+/* «Ключ» · Бирюза */
+:root[data-design="key"][data-palette="teal"] { --bg: #f2f8f9; --panel: #ffffff; --panel2: #e6f2f4; --text: #10222a; --muted: #4d6570; --faint: #566c76; --line: #d7e8ec; --line2: #c1d8de; --accent: #0a6a7d; --accent-hover: #08576a; --accent-soft: #ddf2f6; --on-accent: #ffffff; --code-bg: #f5fafb; color-scheme: light; }
+@media (prefers-color-scheme: dark) { :root[data-design="key"][data-palette="teal"]:not([data-theme="light"]) { --bg: #0b171b; --panel: #111f24; --panel2: #16292f; --text: #e2f0f3; --muted: #9cb4bb; --faint: #89a2aa; --line: #213840; --line2: #2b4851; --accent: #4fd3e8; --accent-hover: #7ee0f0; --accent-soft: #0f3540; --on-accent: #0b171b; --code-bg: #0d1b20; color-scheme: dark; } }
+:root[data-design="key"][data-palette="teal"][data-theme="dark"] { --bg: #0b171b; --panel: #111f24; --panel2: #16292f; --text: #e2f0f3; --muted: #9cb4bb; --faint: #89a2aa; --line: #213840; --line2: #2b4851; --accent: #4fd3e8; --accent-hover: #7ee0f0; --accent-soft: #0f3540; --on-accent: #0b171b; --code-bg: #0d1b20; color-scheme: dark; }
+/* «Ключ» · Ягода */
+:root[data-design="key"][data-palette="berry"] { --bg: #fbf4f8; --panel: #ffffff; --panel2: #f6e9f1; --text: #2a1323; --muted: #6d5264; --faint: #735a6b; --line: #efdbe7; --line2: #e3c6d8; --accent: #ad1f6d; --accent-hover: #911a5b; --accent-soft: #fbe3f0; --on-accent: #ffffff; --code-bg: #fdf8fb; color-scheme: light; }
+@media (prefers-color-scheme: dark) { :root[data-design="key"][data-palette="berry"]:not([data-theme="light"]) { --bg: #1a0f16; --panel: #24151f; --panel2: #2d1a27; --text: #f5e6ef; --muted: #bba1b2; --faint: #ab91a2; --line: #3d2535; --line2: #4d2f43; --accent: #ff7cc4; --accent-hover: #ff9fd3; --accent-soft: #401a31; --on-accent: #1a0f16; --code-bg: #1f121b; color-scheme: dark; } }
+:root[data-design="key"][data-palette="berry"][data-theme="dark"] { --bg: #1a0f16; --panel: #24151f; --panel2: #2d1a27; --text: #f5e6ef; --muted: #bba1b2; --faint: #ab91a2; --line: #3d2535; --line2: #4d2f43; --accent: #ff7cc4; --accent-hover: #ff9fd3; --accent-soft: #401a31; --on-accent: #1a0f16; --code-bg: #1f121b; color-scheme: dark; }
+/* «Ключ» · Графит */
+:root[data-design="key"][data-palette="graphite"] { --bg: #f5f5f4; --panel: #ffffff; --panel2: #eeeeec; --text: #1c1c1a; --muted: #5a5a56; --faint: #60605b; --line: #e2e2df; --line2: #cfcfcb; --accent: #2b2b28; --accent-hover: #000000; --accent-soft: #e9e9e6; --on-accent: #ffffff; --code-bg: #f8f8f7; color-scheme: light; }
+@media (prefers-color-scheme: dark) { :root[data-design="key"][data-palette="graphite"]:not([data-theme="light"]) { --bg: #121212; --panel: #1b1b1b; --panel2: #232323; --text: #ededed; --muted: #a8a8a8; --faint: #989898; --line: #2f2f2f; --line2: #3d3d3d; --accent: #ededed; --accent-hover: #ffffff; --accent-soft: #2e2e2e; --on-accent: #121212; --code-bg: #161616; color-scheme: dark; } }
+:root[data-design="key"][data-palette="graphite"][data-theme="dark"] { --bg: #121212; --panel: #1b1b1b; --panel2: #232323; --text: #ededed; --muted: #a8a8a8; --faint: #989898; --line: #2f2f2f; --line2: #3d3d3d; --accent: #ededed; --accent-hover: #ffffff; --accent-soft: #2e2e2e; --on-accent: #121212; --code-bg: #161616; color-scheme: dark; }
+/* «Рабочее место» · Полночь */
+:root[data-design="ide"][data-palette="night"] { --bg: #0f1420; --panel: #141a28; --panel2: #1a2233; --text: #dbe3f0; --muted: #8e9ab0; --faint: #8893a7; --line: #263049; --line2: #323e5a; --accent: #6ea8fe; --accent-hover: #93bfff; --accent-soft: #172540; --on-accent: #0f1420; --code-bg: #0c1019; --bit: #6ea8fe; --bit-ink: #0f1420; color-scheme: dark; }
+:root[data-design="ide"][data-palette="night"][data-theme="light"] { --bg: #f2f5fa; --panel: #ffffff; --panel2: #e8edf5; --text: #18202e; --muted: #556074; --faint: #5b6577; --line: #d4dcea; --line2: #bfcade; --accent: #0b5cad; --accent-hover: #094b8e; --accent-soft: #e1ecfa; --on-accent: #ffffff; --code-bg: #f8fafd; color-scheme: light; }
+/* «Рабочее место» · Сирень */
+:root[data-design="ide"][data-palette="lilac"] { --bg: #15131c; --panel: #1b1824; --panel2: #221e2e; --text: #e2ddee; --muted: #9a93ad; --faint: #928ba5; --line: #2f2a3e; --line2: #3c3550; --accent: #c39bff; --accent-hover: #d4b6ff; --accent-soft: #2a2140; --on-accent: #15131c; --code-bg: #110f17; --bit: #c39bff; --bit-ink: #15131c; color-scheme: dark; }
+:root[data-design="ide"][data-palette="lilac"][data-theme="light"] { --bg: #f6f4fa; --panel: #ffffff; --panel2: #eeeaf5; --text: #1f1a2b; --muted: #5f5872; --faint: #645d76; --line: #e0dbea; --line2: #cdc5dc; --accent: #6f3cc9; --accent-hover: #5c2fae; --accent-soft: #efe7fc; --on-accent: #ffffff; --code-bg: #fbfafd; color-scheme: light; }
+/* «Рабочее место» · Бирюза */
+:root[data-design="ide"][data-palette="teal"] { --bg: #0f1719; --panel: #131d20; --panel2: #182428; --text: #d7e5e8; --muted: #8aa1a6; --faint: #84999e; --line: #233337; --line2: #2e4247; --accent: #56d4e0; --accent-hover: #7fe1ea; --accent-soft: #12313a; --on-accent: #0f1719; --code-bg: #0c1315; --bit: #56d4e0; --bit-ink: #0f1719; color-scheme: dark; }
+:root[data-design="ide"][data-palette="teal"][data-theme="light"] { --bg: #f1f6f7; --panel: #ffffff; --panel2: #e6eff1; --text: #162326; --muted: #52676b; --faint: #576c70; --line: #d2e0e3; --line2: #bcd0d4; --accent: #0b6c7c; --accent-hover: #095c69; --accent-soft: #dff1f4; --on-accent: #ffffff; --code-bg: #f7fbfb; color-scheme: light; }
+/* «Рабочее место» · Контраст */
+:root[data-design="ide"][data-palette="contrast"] { --bg: #000000; --panel: #0a0a0a; --panel2: #161616; --text: #ffffff; --muted: #d0d0d0; --faint: #c4c4c4; --line: #5a5a5a; --line2: #7a7a7a; --accent: #ffd400; --accent-hover: #ffe34d; --accent-soft: #2b2600; --on-accent: #000000; --code-bg: #050505; --bit: #ffd400; --bit-ink: #000000; color-scheme: dark; }
+:root[data-design="ide"][data-palette="contrast"][data-theme="light"] { --bg: #ffffff; --panel: #ffffff; --panel2: #f0f0f0; --text: #000000; --muted: #333333; --faint: #3d3d3d; --line: #8a8a8a; --line2: #5c5c5c; --accent: #003fc1; --accent-hover: #00309a; --accent-soft: #e3ebff; --on-accent: #ffffff; --code-bg: #fafafa; color-scheme: light; }
+/* /ПАЛИТРЫ */
 /* ===== общее ===== */
 * { box-sizing: border-box; }
 html, body { margin: 0; }
@@ -109,7 +126,7 @@ th { background: var(--panel2); font-weight: 600; }
 h1, h2, h3, h4 { line-height: 1.25; overflow-wrap: break-word; hyphens: auto; }  /* длинные русские слова на узком экране переносятся */
 hr { border: none; border-top: 1px solid var(--line); margin: 20px 0; }
 blockquote { margin: 12px 0; padding: 8px 16px; border-left: 3px solid var(--accent); background: var(--accent-soft); border-radius: 0 var(--r-sm) var(--r-sm) 0; }
-button { font: 700 15px/1.3 var(--ui, var(--font)); cursor: pointer; border-radius: var(--btn-r); border: var(--bw) solid var(--line2); background: var(--panel); color: var(--text); padding: 9px 16px; transition: background-color .12s, border-color .12s, color .12s; }
+button { font: 700 15px/1.3 var(--font); cursor: pointer; border-radius: var(--btn-r); border: var(--bw) solid var(--line2); background: var(--panel); color: var(--text); padding: 9px 16px; transition: background-color .12s, border-color .12s, color .12s; }
 button:hover { border-color: var(--accent); }
 button.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 button.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); color: var(--on-accent); }
@@ -251,12 +268,6 @@ details.run textarea { width: 100%; min-height: 70px; margin-top: 8px; font-fami
 .timer.low { color: var(--bad); }
 .seg { display: none; }
 .stepnav { display: none; }
-.pager { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; margin-top: 28px; }
-.pager button { display: flex; flex-direction: column; gap: 2px; text-align: left; padding: 12px 16px; border-radius: var(--r-sm); background: var(--panel); }
-.pager button .pl { font-size: 12.5px; font-weight: 600; color: var(--faint); }
-.pager button.primary { background: var(--accent); }
-.pager button.primary .pl { color: inherit; opacity: .8; }
-.pager button.nx { grid-column: 2; text-align: right; align-items: flex-end; }
 
 /* окна, меню, уведомления */
 .modal { position: fixed; inset: 0; background: rgba(10,13,20,.55); display: grid; place-items: center; z-index: 50; padding: 16px; }
@@ -275,14 +286,24 @@ details.run textarea { width: 100%; min-height: 70px; margin-top: 8px; font-fami
 .who { font-size: 14px; color: var(--muted); white-space: nowrap; }
 .who b { color: var(--text); }
 /* выбор оформления */
-.pick { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 16px 0 6px; }
+/* окно «Оформление»: вид · цвет · тема */
+.pk h3 { font: 700 13px/1.3 var(--font); text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 20px 0 8px; }
+.pick { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .pick button { display: flex; flex-direction: column; align-items: stretch; gap: 8px; text-align: left; padding: 12px; font-weight: 500; }
-.pick button.on { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.pick button.on, .pal.on, .thseg button.on { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .pick .sw { display: flex; height: 54px; border-radius: 8px; overflow: hidden; border: 1px solid var(--line); }
-.pick .sw i { flex: 1; }
+.pick .sw i { flex: 1; } .pick .sw i:last-child { flex: .5; }
 .pick b { font-size: 15px; }
 .pick span { font-size: 13px; color: var(--muted); line-height: 1.4; }
-@media (max-width: 600px) { .pick { grid-template-columns: 1fr; } .pick .sw { height: 30px; } }
+.pals { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 10px; }
+.pal { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 6px; font-weight: 600; font-size: 13.5px; }
+.pal .dot { position: relative; width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--line2); }
+.pal .dot i { position: absolute; inset: 11px; border-radius: 50%; }
+.pal.on .dot::after { content: "✓"; position: absolute; right: -4px; bottom: -4px; width: 18px; height: 18px; border-radius: 50%; background: var(--accent); color: var(--on-accent); font: 700 11px/18px var(--font); text-align: center; }
+.thseg { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+.thseg button { min-width: 96px; }
+.pk .thHint { margin: 8px 0 0; }
+@media (max-width: 600px) { .pick { grid-template-columns: 1fr; } .pick .sw { height: 30px; } .pals { grid-template-columns: repeat(3, minmax(0, 1fr)); } .thseg { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; } .thseg button { min-width: 0; } }
 
 /* общие блоки главной */
 .hero { background: var(--panel); border: var(--bw) solid var(--line); border-radius: var(--r); padding: 26px 28px; }
@@ -317,14 +338,26 @@ table.grade.dl .src, table.grade.hist td { white-space: normal; }
 .ptabs { display: flex; flex-wrap: nowrap; align-items: center; gap: 2px; margin: 14px 0 6px; border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: thin; }
 .ptabs a { padding: 9px 12px; color: var(--muted); text-decoration: none; font-weight: 600; border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap; flex: none; }
 .ptabs > button { flex: none; white-space: nowrap; }
-:root[data-design="note"] .ptabs a { font-size: 15px; padding: 9px 10px; }
 .ptabs a:hover { color: var(--text); }
 .ptabs a.on { color: var(--accent); border-bottom-color: var(--accent); }
 .ptabs > button { margin-left: auto; }
-@media (max-width: 600px) {
-  .menu-btn, #moreBtn { min-height: 38px; }
-  .tool input, .tool select, .sbin + .actions select, .filters input[type=password] { min-height: 36px; }
-  .ptabs > button, button.link { min-height: 36px; }
+/* вкладки панели не уезжают при прокрутке длинной ведомости; у края — тень: дальше есть ещё вкладки */
+.ptabs { position: sticky; top: var(--top-h); z-index: 5; background: var(--bg); }
+.ptabs.more { -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 32px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 32px), transparent); }
+body.panel #score { display: none; }
+.actions .exp { display: inline-flex; gap: 8px; margin-left: auto; }
+details.how { margin: 12px 0; } details.how summary { cursor: pointer; font-weight: 600; color: var(--muted); }
+@media (max-width: 600px) { .actions .exp { margin-left: 0; } }
+@media (max-width: 600px), (pointer: coarse) {
+  .menu-btn, #moreBtn, #expBtn, .top button { min-height: 38px; }
+  .tool input, .tool select, .sbin + .actions select, .filters input[type=password] { min-height: 40px; }
+  .ptabs > button, button.link { min-height: 40px; }
+  .ptabs a { padding-top: 11px; padding-bottom: 11px; }
+  table .sort { min-height: 34px; min-width: 34px; padding: 6px 8px; }
+  td a, .crumbs a, .back a { display: inline-block; padding: 9px 0; }
+  main .prog a { padding-top: 8px; padding-bottom: 8px; }
+  .exambar button { min-height: 40px; }
+  :root[data-design] body .side .files a { padding-top: 9px; padding-bottom: 9px; }
   :root[data-design] body .side a.ls.ls { padding-top: 9px; padding-bottom: 9px; }   /* сильнее правил оформлений ниже */
   :root[data-design="key"] .stepbar a { position: relative; }
   :root[data-design="key"] .stepbar a::after { content: ""; position: absolute; inset: -14px 0; }
@@ -395,7 +428,7 @@ details.arch > summary { cursor: pointer; color: var(--muted); margin: 6px 0; }
 .filters label.chk, .actions label.chk { display: inline-flex; gap: 6px; align-items: center; }
 .tw { overflow-x: auto; margin: 12px 0 0; max-width: 100%; }
 table.steps { border-collapse: collapse; font: 14px/1.45 var(--mono); background: var(--panel); border: 1px solid var(--line); font-variant-numeric: tabular-nums; }
-table.steps th { font: 700 12.5px/1.3 var(--ui, var(--font)); color: var(--muted); background: var(--panel2); text-align: right; padding: 7px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+table.steps th { font: 700 12.5px/1.3 var(--font); color: var(--muted); background: var(--panel2); text-align: right; padding: 7px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
 table.steps td { padding: 5px 10px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
 table.steps .l { text-align: left; }
 table.steps tr.hl td { background: var(--ok-soft); font-weight: 700; }
@@ -475,7 +508,7 @@ body.bare main { max-width: 620px; padding-top: 12vh; }
   .io, .match-row { grid-template-columns: minmax(0, 1fr); }
   .step { padding: 16px 16px 18px; }
   main { padding: 14px 12px 96px; }
-  .pager { grid-template-columns: 1fr; } .pager button.nx { grid-column: 1; text-align: left; align-items: flex-start; }
+
 }
 @media (max-width: 900px) { .top .score .nm { display: none; } }   /* имя — в кабинете; рядом с кнопкой «Инструменты» оно не помещается */
 @media (max-width: 520px) { .top button { padding: 7px 11px; } }
@@ -483,11 +516,11 @@ body.bare main { max-width: 620px; padding-top: 12vh; }
 
 /* ===== ОФОРМЛЕНИЕ «КЛЮЧ» ===== */
 /* меню курса — выдвижное на любой ширине; урок — по одному шагу, кнопки снизу под пальцем */
-:root[data-design="key"] .layout, :root[data-design="note"] .layout { grid-template-columns: minmax(0, 1fr); }
-:root[data-design="key"] nav.side, :root[data-design="note"] nav.side { position: fixed; left: 0; top: var(--top-h); width: min(340px, 88vw); z-index: 30; transform: translateX(-105%); transition: transform .22s ease; box-shadow: var(--shadow-lg); }
-:root[data-design="key"] body.nav-open nav.side, :root[data-design="note"] body.nav-open nav.side { transform: none; }
-:root[data-design="key"] body.nav-open .scrim, :root[data-design="note"] body.nav-open .scrim { display: block; position: fixed; inset: var(--top-h) 0 0 0; background: rgba(10,13,20,.45); z-index: 25; }
-:root[data-design="key"] .menu-btn, :root[data-design="note"] .menu-btn { display: inline-block; }
+:root[data-design="key"] .layout { grid-template-columns: minmax(0, 1fr); }
+:root[data-design="key"] nav.side { position: fixed; left: 0; top: var(--top-h); width: min(340px, 88vw); z-index: 30; transform: translateX(-105%); transition: transform .22s ease; box-shadow: var(--shadow-lg); }
+:root[data-design="key"] body.nav-open nav.side { transform: none; }
+:root[data-design="key"] body.nav-open .scrim { display: block; position: fixed; inset: var(--top-h) 0 0 0; background: rgba(10,13,20,.45); z-index: 25; }
+:root[data-design="key"] .menu-btn { display: inline-block; }
 :root[data-design="key"] .top { border-bottom: none; }
 :root[data-design="key"] .top .brand { text-transform: lowercase; }
 :root[data-design="key"] .top .brand small { display: none; }
@@ -518,7 +551,6 @@ body.bare main { max-width: 620px; padding-top: 12vh; }
 :root[data-design="key"] .stepnav { display: flex; justify-content: space-between; gap: 10px; padding: 16px 0 22px; margin-top: 8px; }
 :root[data-design="key"] .stepnav button:not(.primary) { background: none; }
 :root[data-design="key"] .stepnav .nx { margin-left: auto; }
-:root[data-design="key"] .pager { display: none; }
 :root[data-design="key"] .crumbs { display: none; }
 @media (min-width: 1100px) {
   :root[data-design="key"] main.in-lesson.wide { max-width: 1240px; }
@@ -579,6 +611,18 @@ body.bare main { max-width: 620px; padding-top: 12vh; }
 .mini-bits i.half { background: linear-gradient(0deg, var(--bit) 45%, var(--code-bg) 45%); border-color: var(--bit); }
 .fin h2 { font: 700 clamp(22px, 3vw, 30px)/1.25 var(--display); }
 .fin .dump { margin: 22px 0 14px; }
+@media (max-height: 500px) {
+  :root[data-design] .step > .actions, :root[data-design] .step .work > .actions, :root[data-design] .step[data-t="text"] .stepnav.stepnav { position: static; }
+  :root[data-design="key"] .stepbar { position: static; }
+  .ptabs { position: static; }
+}
+@media (max-width: 860px) {
+  :root[data-design="key"] .step[data-t="text"] .stepnav { position: sticky; bottom: 0; z-index: 3; background: var(--panel); margin: 16px -16px 0; padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); border-top: var(--bw) solid var(--line); }
+  :root[data-design="key"] .step[data-t="text"] .stepnav button { flex: 1; } :root[data-design="key"] .step[data-t="text"] .stepnav button.nx { flex: 2; }
+  /* «Рабочее место»: то же над строкой состояния (26px) */
+  :root[data-design="ide"] .step[data-t="text"] .stepnav { position: sticky; bottom: 26px; z-index: 3; background: var(--bg); margin: 20px -16px 0; padding: 10px 16px; max-width: none; }
+  :root[data-design="ide"] .step[data-t="text"] .stepnav button { flex: 1; } :root[data-design="ide"] .step[data-t="text"] .stepnav button.nx { flex: 2; }
+}
 @media (max-width: 860px) { .kh { grid-template-columns: minmax(0, 1fr); padding: 22px 18px; border-radius: 22px; gap: 20px; } :root[data-design="key"] .step { padding: 18px 16px 0; border-radius: 18px; } :root[data-design="key"] .step > .actions { margin: 16px -16px 0; padding: 12px 16px; } }
 @media (max-width: 480px) { .dump { grid-template-columns: auto repeat(8, minmax(0, 1fr)) auto; gap: 4px; width: 100%; } .bit { width: auto; height: 34px; font-size: 13px; border-radius: 7px; } .dump .off { padding-right: 2px; font-size: 12px; } .dump .hx { padding-left: 4px; font-size: 12px; min-width: 0; } .route .wk { grid-template-columns: 40px minmax(0, 1fr) auto; gap: 2px 12px; } .route .n { font-size: 22px; } .route .ls { display: none; } :root[data-design="key"] .actions button.primary { flex: 1 0 auto; max-width: 100%; } }
 
@@ -640,7 +684,6 @@ body.bare main { max-width: 620px; padding-top: 12vh; }
 :root[data-design="ide"] .result { font-family: var(--mono); font-size: 13.5px; border-left-width: 3px; }
 :root[data-design="ide"] .result .ttl { font-family: var(--font); }
 :root[data-design="ide"] .stepnav { display: flex; justify-content: flex-end; gap: 10px; max-width: 780px; margin-top: 28px; padding-top: 14px; border-top: 1px solid var(--line); }
-:root[data-design="ide"] .pager { display: none; }
 :root[data-design="ide"] .ws { padding: 26px 32px 40px; }
 @media (min-width: 1000px) {
   :root[data-design="ide"] .step.split.cur { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 0; padding: 0; align-items: start; }
@@ -712,82 +755,6 @@ kbd { font: 12px var(--mono); border: 1px solid var(--line); border-bottom-width
   .md-h::before { display: none; }
 }
 
-/* ===== ОФОРМЛЕНИЕ «ТЕТРАДЬ» ===== */
-:root[data-design="note"] body { font-size: 18px; line-height: 1.7; font-weight: 400;
-  background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px); background-size: 24px 24px; }
-:root[data-design="note"] .top { background: var(--panel); border-bottom: 1.5px solid var(--text); font-family: var(--ui); }
-:root[data-design="note"] .top .brand { font-size: 18px; }
-:root[data-design="note"] .top .brand .logo { display: none; }
-:root[data-design="note"] .top .brand small { font-family: var(--ui); }
-:root[data-design="note"] button { font-family: var(--ui); }
-:root[data-design="note"] .top .score .mini { display: none; }
-:root[data-design="note"] main { --margin: 120px; position: relative; max-width: 1000px; padding: 40px 32px 120px calc(var(--margin) + 28px); }
-:root[data-design="note"] main::before { content: ""; position: absolute; top: 0; bottom: 0; left: var(--margin); border-left: 2px solid var(--rule); opacity: .75; }
-:root[data-design="note"] body.bare main::before { display: none; }
-:root[data-design="note"] body.bare main { padding-left: 32px; }
-:root[data-design="note"] .lesson-h { font-size: clamp(28px, 4.4vw, 40px); }
-:root[data-design="note"] .crumbs, :root[data-design="note"] .small { font-family: var(--ui); }
-:root[data-design="note"] .stepbar { gap: 4px 16px; font: 15px var(--ui); margin-bottom: 34px; }
-:root[data-design="note"] .stepbar a { color: var(--muted); }
-:root[data-design="note"] .stepbar .sn::after { content: ". "; }
-:root[data-design="note"] .stepbar .tn { display: inline; }
-:root[data-design="note"] .stepbar a.full .tn::after { content: " ✓"; color: var(--ok); }
-:root[data-design="note"] .stepbar a.part .tn::after { content: " ½"; color: var(--rule); }
-:root[data-design="note"] .step { background: none; border: none; padding: 0; margin: 0 0 54px; max-width: 42em; }
-:root[data-design="note"] .step[data-t]:not([data-t="text"]) { background: var(--panel); border: 1.5px solid var(--text); padding: 22px 24px 24px; }
-:root[data-design="note"] .step-h .num { display: block; position: absolute; top: 0; left: calc(-1 * var(--margin) - 28px); width: var(--margin); padding-right: 14px; text-align: right; font: italic 700 19px var(--display); color: var(--rule); line-height: 1.3; }
-:root[data-design="note"] .step[data-t="text"] .step-h .num { color: var(--faint); font-weight: 400; }
-:root[data-design="note"] .step[data-t]:not([data-t="text"]) .step-h .num { top: 22px; }
-:root[data-design="note"] .step-h .kind { font: 700 14px var(--ui); }
-:root[data-design="note"] .step-h .kind .n { display: none; }
-:root[data-design="note"] .step-h .kind .t { background: none; padding: 0; color: var(--muted); font-size: 14px; }
-:root[data-design="note"] .badge { font-family: var(--ui); border-radius: 4px; background: none; border: 1.5px solid var(--line2); }
-:root[data-design="note"] .badge.full { border-color: var(--ok); transform: rotate(-3deg); }
-:root[data-design="note"] .badge.part { border-color: var(--warn); }
-:root[data-design="note"] pre { border: none; border-left: 3px solid var(--line); border-radius: 0; }
-:root[data-design="note"] .io pre { border-left-color: var(--rule); }
-:root[data-design="note"] .opt { border: none; padding: 7px 10px; margin: 0 -10px; background: none; }
-:root[data-design="note"] .opt:hover, :root[data-design="note"] .opt:has(input:checked) { background: var(--panel2); }
-:root[data-design="note"] .result { font-size: 17px; border: none; border-left: 4px solid var(--rule); border-radius: 0; }
-:root[data-design="note"] .result.ok { border-left-color: var(--ok); }
-:root[data-design="note"] .result .ttl { font-family: var(--ui); }
-:root[data-design="note"] .editor { border: 1.5px solid var(--text); border-radius: 0; }
-:root[data-design="note"] .editor .ed-h { font-family: var(--ui); }
-:root[data-design="note"] .CodeMirror, :root[data-design="note"] .CodeMirror-gutters { background: var(--panel); }
-:root[data-design="note"] .CodeMirror-gutters { border-right-color: var(--rule); }
-:root[data-design="note"] .pager { max-width: 42em; border-top: 1.5px solid var(--text); padding-top: 18px; }
-:root[data-design="note"] .pager button { border: none; background: none; padding: 0; color: var(--text); }
-:root[data-design="note"] .pager button.primary { background: none; color: var(--text); }
-/* титульный лист и оглавление */
-.tp h1 { font: 700 clamp(26px, 6vw, 56px)/1.15 var(--display); margin: 0 0 18px; max-width: 14em; }
-.tp .lead { font-size: 20px; color: var(--muted); max-width: 34em; margin: 0 0 22px; font-style: italic; }
-.tp .meta { font: 16px var(--ui); color: var(--muted); }
-.tp .meta b { color: var(--text); }
-.tp .cont { margin: 26px 0 46px; display: flex; flex-wrap: wrap; gap: 14px 20px; align-items: center; }
-.tp .cont .where { font: 16px var(--ui); color: var(--muted); }
-.tp .cont .where b { display: block; color: var(--text); font-size: 17px; }
-.toc h2 { font: 700 26px var(--display); margin: 0 0 14px; }
-.toc ol { list-style: none; padding: 0; margin: 0; }
-.toc > ol > li { margin: 0 0 22px; position: relative; }
-.toc .wkn { display: flex; align-items: baseline; gap: 8px; font-weight: 700; font-size: 19px; }
-.toc .wkn a { color: inherit; text-decoration: none; }
-.toc .dots { flex: 1; border-bottom: 2px dotted var(--line2); transform: translateY(-5px); min-width: 24px; }
-.toc .pts { font: 15px var(--ui); color: var(--muted); white-space: nowrap; }
-.toc .pts.done { color: var(--ok); font-weight: 700; }
-.toc .wnum { position: absolute; left: calc(-1 * var(--margin) - 28px); width: var(--margin); text-align: right; padding-right: 14px; font: 700 19px var(--display); color: var(--muted); }
-.toc .ls { margin: 6px 0 0; font-size: 16px; }
-.toc .ls li { display: flex; align-items: baseline; gap: 8px; }
-.toc .ls a { color: inherit; text-decoration: none; }
-.toc .ls a:hover { text-decoration: underline; text-decoration-color: var(--rule); }
-.toc .tick { width: 1.2em; flex: none; color: var(--rule); font-weight: 700; text-align: center; }
-@media (max-width: 720px) {
-  :root[data-design="note"] main { --margin: 40px; padding: 24px 14px 96px calc(var(--margin) + 14px); }
-  :root[data-design="note"] body { font-size: 17px; }
-  :root[data-design="note"] .step-h .num, .toc .wnum { left: calc(-1 * var(--margin) - 14px); font-size: 15px; padding-right: 8px; }
-  :root[data-design="note"] .step[data-t]:not([data-t="text"]) { padding: 16px; }
-  :root[data-design="note"] .step[data-t]:not([data-t="text"]) .step-h .num { top: 16px; }
-  .toc .ls { display: none; } .toc > ol > li.open .ls { display: block; }
-}
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 </style>
 </head>
@@ -1540,38 +1507,90 @@ R.code = (s, root) => {
   setTimeout(ed.refresh, 0);
 };
 
-/* ---------- оформление: key «Ключ» | ide «Рабочее место» | note «Тетрадь» ----------
+/* ---------- оформление: key «Ключ» | ide «Рабочее место» ----------
    Выбор хранится в браузере (KEY-design), начальное значение ставит скрипт в <head> до отрисовки. */
 const DESIGNS = {
   key: { name: 'Ключ', about: 'Урок по одному шагу, кнопки снизу. Пройденные уроки зажигают биты ключа.', sw: ['#f6f5fb', '#5b3df5', '#ffc93c', '#19162e'] },
   ide: { name: 'Рабочее место', about: 'Как редактор кода: шаги — файлы, условие и код рядом, тёмная тема.', sw: ['#12161d', '#171c25', '#f2b13d', '#5cc98d'] },
-  note: { name: 'Тетрадь', about: 'Весь урок одной страницей, как в учебнике: поля, клетка, пометки.', sw: ['#fbfcfe', '#e6edf6', '#1c2b4a', '#d2423b'] },
 };
+// палитры каждого оформления (первая — основная, без data-palette); список и цвета — из lms/tools/palettes.py
+const PALETTES = /*ПАЛИТРЫ*/{ key: [{ id: '', name: 'Фиалка', light: ['#5b3df5', '#f6f5fb', '#f0eef8'], dark: ['#9d8cff', '#110f1e', '#221e3b'] }, { id: 'sea', name: 'Море', light: ['#0a62bd', '#f3f7fb', '#e9f1f8'], dark: ['#5aaeff', '#0b1520', '#172738'] }, { id: 'teal', name: 'Бирюза', light: ['#0a6a7d', '#f2f8f9', '#e6f2f4'], dark: ['#4fd3e8', '#0b171b', '#16292f'] }, { id: 'berry', name: 'Ягода', light: ['#ad1f6d', '#fbf4f8', '#f6e9f1'], dark: ['#ff7cc4', '#1a0f16', '#2d1a27'] }, { id: 'graphite', name: 'Графит', light: ['#2b2b28', '#f5f5f4', '#eeeeec'], dark: ['#ededed', '#121212', '#232323'] }], ide: [{ id: '', name: 'Янтарь', light: ['#9b5b00', '#f3f4f6', '#eceff3'], dark: ['#f2b13d', '#12161d', '#1d2430'] }, { id: 'night', name: 'Полночь', light: ['#0b5cad', '#f2f5fa', '#e8edf5'], dark: ['#6ea8fe', '#0f1420', '#1a2233'] }, { id: 'lilac', name: 'Сирень', light: ['#6f3cc9', '#f6f4fa', '#eeeaf5'], dark: ['#c39bff', '#15131c', '#221e2e'] }, { id: 'teal', name: 'Бирюза', light: ['#0b6c7c', '#f1f6f7', '#e6eff1'], dark: ['#56d4e0', '#0f1719', '#182428'] }, { id: 'contrast', name: 'Контраст', light: ['#003fc1', '#ffffff', '#f0f0f0'], dark: ['#ffd400', '#000000', '#161616'] }] }/*/ПАЛИТРЫ*/;
 const design = () => document.documentElement.dataset.design || 'key';
-const oneStep = () => design() !== 'note';   // «Ключ» и «Рабочее место» показывают по одному шагу
-function setDesign(d) {
+const palette = (d = design()) => { try { return localStorage.getItem(KEY + '-palette-' + d) || ''; } catch (e) { return ''; } };
+const palOf = (d, id) => PALETTES[d].find(p => p.id === id) || PALETTES[d][0];
+// тёмная ли сейчас тема: выбрана явно, иначе «Рабочее место» — тёмное, «Ключ» — как в системе
+const isDark = (d = design()) => { const t = document.documentElement.dataset.theme; return t ? t === 'dark' : d === 'ide' || matchMedia('(prefers-color-scheme: dark)').matches; };
+const prefsPalette = () => { const o = {}; Object.keys(DESIGNS).forEach(d => { const p = palette(d); if (p) o[d] = p; }); return Object.keys(o).length ? o : null; };
+function setDesign(d, quiet) {
   if (!DESIGNS[d]) return;
   document.documentElement.dataset.design = d;
   try { localStorage.setItem(KEY + '-design', d); } catch (e) {}
+  window.applyPalette();
   window.loadDesignFonts && window.loadDesignFonts(d);
   if (ME) savePrefs({ design: d });
-  refreshChrome(); route();
+  if (!quiet) { refreshChrome(); route(); }
 }
+function setPalette(id) {
+  const d = design();
+  try { if (id) localStorage.setItem(KEY + '-palette-' + d, id); else localStorage.removeItem(KEY + '-palette-' + d); } catch (e) {}
+  window.applyPalette();
+  if (ME) savePrefs({ palette: prefsPalette() });
+}
+function setTheme(t) {   // 'light' | 'dark' | '' — авто
+  const r = document.documentElement;
+  if (t) r.dataset.theme = t; else delete r.dataset.theme;
+  try { if (t) localStorage.setItem(KEY + '-theme', t); else localStorage.removeItem(KEY + '-theme'); } catch (e) {}
+  if (ME) savePrefs({ theme: t || null });
+}
+// «Оформление»: вид, палитра и тема — всё видно сразу, «Готово» только закрывает
 function pickDesign(first) {
   const md = el('div', { class: 'modal' });
-  md.innerHTML = '<div class="box wide"><h2>' + (first ? 'Выберите оформление' : 'Оформление') + '</h2><p class="small">Курс один и тот же, меняется только вид. Поменять можно в любой момент в меню «⋯».</p><div class="pick"></div><div class="actions"><button class="primary" id="pkOk">Готово</button></div></div>';
-  const box = $('.pick', md);
-  Object.entries(DESIGNS).forEach(([k, v]) => {
-    const b = el('button', { class: design() === k ? 'on' : '', 'data-d': k }, '<span class="sw">' + v.sw.map(c => '<i style="background:' + c + '"></i>').join('') + '</span><b>' + v.name + '</b><span>' + v.about + '</span>');
-    b.onclick = () => { setDesign(k); box.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); };
-    box.appendChild(b);
-  });
-  $('#pkOk', md).onclick = () => { try { localStorage.setItem(KEY + '-design-picked', '1'); } catch (e) {} md.remove(); };
+  md.innerHTML = '<div class="box wide pk" role="dialog" aria-label="Оформление"><h2>' + (first ? 'Выберите оформление' : 'Оформление') + '</h2>' +
+    '<p class="small">Курс один и тот же — меняется только вид. ' + (SERVER ? 'Выбор сохраняется для всех ваших устройств.' : 'Поменять можно в любой момент в меню «⋯».') + '</p>' +
+    '<h3>Вид</h3><div class="pick" role="radiogroup" aria-label="Вид"></div>' +
+    '<h3>Цвет</h3><div class="pals" role="radiogroup" aria-label="Цвет"></div>' +
+    '<h3>Тема</h3><div class="thseg th" role="radiogroup" aria-label="Тема"></div><p class="small thHint"></p>' +
+    '<div class="actions"><button class="primary" id="pkOk">Готово</button></div></div>';
+  const paint = () => {
+    const dk = isDark() ? 'dark' : 'light', box = $('.pick', md), pals = $('.pals', md), th = $('.th', md);
+    box.innerHTML = ''; pals.innerHTML = ''; th.innerHTML = '';
+    Object.entries(DESIGNS).forEach(([k, v]) => {
+      const c = palOf(k, palette(k))[isDark(k) ? 'dark' : 'light'];
+      const b = el('button', { class: design() === k ? 'on' : '', role: 'radio', 'aria-checked': String(design() === k), 'data-d': k },
+        '<span class="sw" aria-hidden="true"><i style="background:' + c[1] + '"></i><i style="background:' + c[2] + '"></i><i style="background:' + c[0] + '"></i></span><b>' + v.name + '</b><span>' + v.about + '</span>');
+      b.onclick = () => { setDesign(k, true); paint(); };
+      box.appendChild(b);
+    });
+    PALETTES[design()].forEach(p => {
+      const c = p[dk], on = palette() === p.id;
+      const b = el('button', { class: 'pal' + (on ? ' on' : ''), role: 'radio', 'aria-checked': String(on), title: p.name },
+        '<span class="dot" aria-hidden="true" style="background:linear-gradient(135deg,' + c[1] + ' 50%,' + c[2] + ' 50%)"><i style="background:' + c[0] + '"></i></span><span>' + p.name + '</span>');
+      b.onclick = () => { setPalette(p.id); paint(); };
+      pals.appendChild(b);
+    });
+    const cur = document.documentElement.dataset.theme || '';
+    [['light', 'Светлая'], ['dark', 'Тёмная'], ['', 'Авто']].forEach(([v, t]) => {
+      const b = el('button', { class: cur === v ? 'on' : '', role: 'radio', 'aria-checked': String(cur === v) }, t);
+      b.onclick = () => { setTheme(v); paint(); };
+      th.appendChild(b);
+    });
+    $('.thHint', md).textContent = design() === 'ide' ? 'Авто: «Рабочее место» — тёмное, как редактор кода.' : 'Авто: как в настройках системы — днём светлая, вечером тёмная, если так настроено.';
+  };
+  paint();
+  const close = () => { try { localStorage.setItem(KEY + '-design-picked', '1'); } catch (e) {} md.remove(); document.removeEventListener('keydown', esc_); refreshChrome(); route(); };
+  const esc_ = e => { if (e.key === 'Escape') close(); };
+  $('#pkOk', md).onclick = close;
+  md.addEventListener('click', e => { if (e.target === md) close(); });
+  document.addEventListener('keydown', esc_);
   document.body.appendChild(md);
+  $('#pkOk', md).focus();
 }
 function maybePickDesign() {
   let picked = '1';
-  try { picked = localStorage.getItem(KEY + '-design-picked'); } catch (e) {}
+  try {
+    picked = localStorage.getItem(KEY + '-design-picked');
+    if (localStorage.getItem(KEY + '-note-gone')) { localStorage.removeItem(KEY + '-note-gone'); toast('Оформление «Тетрадь» больше не поддерживается — включён «Ключ». Цвет и тему можно выбрать в меню «⋯».'); }
+  } catch (e) {}
   if (!picked && !$('.modal')) pickDesign(true);
 }
 
@@ -1595,7 +1614,7 @@ function refreshChrome(s) {
 }
 function paintStatus() {
   const st = $('#status'); if (!st || !CAT) return;
-  const where = CUR ? esc(CUR.mod.label) + ' › ' + esc(CUR.title) + (oneStep() && STEP ? ' › шаг ' + STEP + ' из ' + CUR.steps.length : '') : onTools() ? 'Инструменты' : 'Начало';
+  const where = CUR ? esc(CUR.mod.label) + ' › ' + esc(CUR.title) + (STEP ? ' › шаг ' + STEP + ' из ' + CUR.steps.length : '') : onTools() ? 'Инструменты' : 'Начало';
   st.innerHTML = '<span class="pystat"></span><span class="hide-sm">' + where + '</span><span class="grow"></span><span><b>' + fmt(totalGot()) + '</b>/' + CAT.total + ' баллов</span>' + (S.name ? '<span class="hide-sm">' + esc(S.name) + '</span>' : '');
   paintPy($('.pystat', st));
 }
@@ -1627,7 +1646,7 @@ function drawSide() {
       box.appendChild(el('a', { class: 'ls' + (CUR === l ? ' cur' : ''), href: '#' + l.key }, '<span class="dot ' + dot + '"></span><span>' + esc(l.title) + '</span>'));
       if (CUR === l) {
         const files = el('div', { class: 'files' });
-        l.steps.forEach(s => files.appendChild(el('a', { class: STEP === s.num ? 'cur' : '', href: '#' + l.key + '/' + s.num, on: { click: e => { if (!oneStep()) return; e.preventDefault(); showStep(s.num); document.body.classList.remove('nav-open'); } } },
+        l.steps.forEach(s => files.appendChild(el('a', { class: STEP === s.num ? 'cur' : '', href: '#' + l.key + '/' + s.num, on: { click: e => { e.preventDefault(); showStep(s.num); document.body.classList.remove('nav-open'); } } },
           fi(s) + '<span class="nm">' + esc(fname(s).replace(/\.[a-z]+$/, '')) + '</span>' + (stCls(s.id) === 'full' ? '<span class="ok">✓</span>' : '<span>.' + EXT[s.t] + '</span>'))));
         box.appendChild(files);
       }
@@ -1645,7 +1664,7 @@ function testBanner(m) {
 function home() {
   CUR = null; STEP = 0; drawSide(); paintStatus();
   const m = $('#main'); m.className = ''; m.innerHTML = '';
-  ({ key: homeKey, ide: homeIde, note: homeNote })[design()](m);
+  ({ key: homeKey, ide: homeIde })[design()](m);
   window.scrollTo(0, 0);
 }
 
@@ -1718,24 +1737,6 @@ function homeIde(m) {
   m.appendChild(ws); testBanner(ws);
 }
 
-/* главная «Тетрадь»: титульный лист и оглавление учебника */
-function homeNote(m) {
-  const nx = nextLesson(), TL = TASK_LESSONS(), done = TL.filter(l => lstate(l) === 'done').length;
-  const tp = el('section', { class: 'tp' }, '<h1>Математические основы и базовые алгоритмы криптографии</h1>' +
-    '<p class="lead">От делимости и остатков до AES, RSA и эллиптических кривых. Каждую формулу вы проверите кодом на Python прямо на странице.</p>' +
-    '<p class="meta">' + (S.name ? esc(S.name) + ': ' : '') + 'набрано <b>' + fmt(totalGot()) + '</b> из ' + CAT.total + ', пройдено уроков <b>' + done + '</b> из ' + TL.length + '</p><div class="cont"></div>');
-  $('.cont', tp).append(el('button', { class: 'primary', on: { click: () => location.hash = nx.key } }, totalGot() ? 'Продолжить урок' : 'Начать курс'),
-    el('span', { class: 'where' }, esc(nx.mod.label) + '<b>' + esc(nx.title) + '</b>'));
-  tp.appendChild(el('p', { class: 'meta' }, '<a href="#tools">Инструменты</a>: песочница Python и разборы по шагам — Евклид, степень, КТО, шифры, байты.'));
-  m.appendChild(tp); testBanner(m);
-  let h = '<h2>Оглавление</h2><ol>';
-  CAT.modules.forEach(M => {
-    const ms = modStat(M);
-    h += '<li' + (M === nx.mod ? ' class="open"' : '') + '><span class="wnum">' + (M.n === 15 ? 'И' : M.n) + '</span><div class="wkn"><a href="#' + M.lessons[0].key + '">' + esc(shortTitle(M)) + '</a><span class="dots"></span><span class="pts' + (ms.m && ms.g >= ms.m ? ' done' : '') + '">' + fmt(ms.g) + ' из ' + ms.m + '</span></div><ol class="ls">' +
-      M.lessons.map(l => { const s = lstate(l); return '<li><span class="tick">' + (s === 'done' ? '✓' : s === 'part' ? '½' : '') + '</span><a href="#' + l.key + '">' + esc(l.title) + '</a></li>'; }).join('') + '</ol></li>';
-  });
-  m.appendChild(el('section', { class: 'toc' }, h + '</ol>'));
-}
 const plural = (n, a, b, c) => { const k = n % 100, j = n % 10; return k >= 11 && k <= 14 ? c : j === 1 ? a : j >= 2 && j <= 4 ? b : c; };
 
 async function lesson(l, want) {
@@ -1785,26 +1786,10 @@ async function lesson(l, want) {
     card.appendChild(nav);
     m.appendChild(card);
   });
-  const pager = el('div', { class: 'pager' });
-  if (li > 0) pager.append(el('button', { on: { click: () => location.hash = LESSONS[li - 1].key } }, '<span class="pl">← Назад</span>' + esc(LESSONS[li - 1].title)));
-  if (nextL) pager.append(el('button', { class: 'primary nx', on: { click: () => location.hash = nextL.key } }, '<span class="pl">Далее →</span>' + esc(nextL.title)));
-  m.appendChild(pager);
   // с какого шага начать: из адреса (#m1l4/3), иначе с первого нерешённого задания
   const first = l.steps.find(s => isTask(s) && sc(s.id) !== 1);
   const n = want && want <= l.steps.length ? want : first ? Math.max(1, first.num - (l.steps[first.num - 2] && !isTask(l.steps[first.num - 2]) ? 1 : 0)) : 1;
-  if (oneStep()) showStep(want ? n : (lessonStat(l).g ? n : 1), true);
-  else {
-    window.scrollTo(0, 0); if (want) setTimeout(() => goStep(want), 50);
-    // урок одной страницей («Тетрадь»): теория прочитана, когда её конец показался на экране
-    if (window.IntersectionObserver) {
-      const io = new IntersectionObserver(es => es.forEach(e => {
-        if (!e.isIntersecting || CUR !== l) return;
-        io.unobserve(e.target);
-        if (markSeen(STEPMETA[e.target.dataset.id])) drawSide();
-      }));
-      m.querySelectorAll('section.step[data-t="text"]').forEach(sec => { const end = el('i', { 'data-id': sec.id.slice(2) }); sec.appendChild(end); io.observe(end); });
-    }
-  }
+  showStep(want ? n : (lessonStat(l).g ? n : 1), true);
   if (steps.some(s => s.t === 'code' || s.t === 'dataset')) pyStart().catch(() => {});
 }
 function showStep(n, quiet) {
@@ -1820,12 +1805,9 @@ function showStep(n, quiet) {
   drawSide(); paintStatus();
   window.scrollTo(0, quiet ? 0 : Math.min(window.scrollY, m.querySelector('.stepbar').offsetTop - 8));
 }
-function goStep(n) {
-  if (oneStep()) return showStep(n);
-  const s = CUR && CUR.steps[n - 1]; if (s) document.getElementById('st' + s.id).scrollIntoView({ behavior: 'smooth' });
-}
+const goStep = n => showStep(n);
 addEventListener('keydown', e => {
-  if (e.altKey && CUR && STEP && oneStep() && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) { e.preventDefault(); showStep(STEP + (e.key === 'ArrowRight' ? 1 : -1)); }
+  if (e.altKey && CUR && STEP && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) { e.preventDefault(); showStep(STEP + (e.key === 'ArrowRight' ? 1 : -1)); }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b' && design() === 'ide') { e.preventDefault(); document.body.classList.toggle('noexp'); }
 });
 
@@ -1847,6 +1829,7 @@ function lessonDone(l) {
 function route() {
   document.body.classList.remove('nav-open');
   if (SERVER && !ME) return;
+  document.body.classList.toggle('panel', location.hash.startsWith('#teacher'));
   const k = location.hash.slice(1), [lk, sn] = k.split('/'), l = LESSONS.find(x => x.key === lk);
   if (k.startsWith('teacher')) { CUR = null; STEP = 0; $('#main').className = ''; return isStaff() ? teacher(k.split('/')[1]) : home(); }
   if (k === 'me') { STEP = 0; return ME ? cabinet() : home(); }
@@ -2270,6 +2253,10 @@ function panelTabs(m, cur) {
   const r = linkBtn('Обновить', () => reloadPanel(cur)); r.title = 'Загрузить свежие данные с сервера';
   t.appendChild(r);
   m.appendChild(t);
+  // тень у правого края, пока справа есть невидимые вкладки
+  const more = () => t.classList.toggle('more', t.scrollLeft + t.clientWidth < t.scrollWidth - 4);
+  t.addEventListener('scroll', more, { passive: true }); addEventListener('resize', more, { passive: true });
+  const on = $('a.on', t); requestAnimationFrame(() => { if (on) t.scrollLeft = Math.max(0, on.offsetLeft - (t.clientWidth - on.offsetWidth) / 2); more(); });
 }
 
 async function teacher(sub) {
@@ -2497,12 +2484,13 @@ function sheetPage(m, td) {
   const info = el('p', { class: 'small' });
   m.appendChild(info);
   const acts = el('div', { class: 'actions' });
-  acts.append(pbtn('Скачать xlsx', () => xlsx(filtered(), g), true), pbtn('CSV', () => csv(filtered(), g)));
   if (isTeacher()) acts.append(pbtn('Добавить студентов', () => addStudents(td, g)), pbtn('Продлить срок', () => extendForm(shown)));
+  const ex = el('span', { class: 'exp' }); ex.append(pbtn('Скачать xlsx', () => xlsx(filtered(), g)), pbtn('CSV', () => csv(filtered(), g)));
+  acts.appendChild(ex);
   m.appendChild(acts);
   const wrap = el('div', { class: 'gwrap' });
   m.appendChild(wrap);
-  m.appendChild(el('p', { class: 'small' }, 'Баллы — проверенные сервером и сданные в срок группы (с учётом продлений); работы с «не допущен» по устной проверке не засчитываются. ' +
+  m.appendChild(el('details', { class: 'small how' }, '<summary>Как считаются баллы</summary>' + 'Баллы — проверенные сервером и сданные в срок группы (с учётом продлений); работы с «не допущен» по устной проверке не засчитываются. ' +
     UNI.map(U => U.short + ' — ' + U.name.toLowerCase() + ' вуза (' + uniWeeks(U) + '), до ' + U.max).join('; ') + ': рейтинг модуля из 100 по весам ' +
     Object.entries(WEIGHTS).map(([c, w]) => CAT_NAMES[c] + ' ' + w).join(', ') + ' (части, которых в модуле нет, не считаются) × ' + fmt(UNI[0].max / 100) + '. ' +
     'Доп. — до ' + BONUS_MAX + ', ставится вручную в карточке студента. Итого — без экзамена (экзамен до 40 ставит лектор). ' +
@@ -3484,6 +3472,11 @@ async function loadPrefs() {
     document.documentElement.dataset.theme = PREFS.theme;
     try { localStorage.setItem(KEY + '-theme', PREFS.theme); } catch (e) {}
   }
+  if (PREFS.palette && typeof PREFS.palette === 'object') {
+    try { Object.keys(DESIGNS).forEach(d => { const p = PREFS.palette[d]; if (p && PALETTES[d].some(x => x.id === p)) localStorage.setItem(KEY + '-palette-' + d, p); else localStorage.removeItem(KEY + '-palette-' + d); }); } catch (e) {}
+    window.applyPalette();
+  }
+  if (PREFS.design === 'note') savePrefs({ design: 'key' });   // «Тетрадь» убрана — запись на сервере тоже переводится на «Ключ»
 }
 
 /* обработка персональных данных и справка */
@@ -4312,10 +4305,8 @@ function menu() {
   mn.appendChild(el('div', { class: 'sep' }));
   mn.appendChild(el('div', { class: 'mh' }, 'Оформление'));
   Object.entries(DESIGNS).forEach(([k, v]) => item((design() === k ? '● ' : '○ ') + v.name, () => setDesign(k)));
-  item('Сравнить оформления…', () => pickDesign(false));
-  mn.appendChild(el('div', { class: 'sep' }));
-  // «Рабочее место» по умолчанию тёмное, остальные — как в системе
-  item('Тема: светлая / тёмная', () => { const cur = document.documentElement.dataset.theme; const dark = cur ? cur === 'dark' : design() === 'ide' || matchMedia('(prefers-color-scheme: dark)').matches; document.documentElement.dataset.theme = dark ? 'light' : 'dark'; try { localStorage.setItem(KEY + '-theme', document.documentElement.dataset.theme); } catch (e) {} if (ME) savePrefs({ theme: document.documentElement.dataset.theme }); });
+  item('Цвет и тема…', () => pickDesign(false));
+  item(isDark() ? 'Светлая тема' : 'Тёмная тема', () => setTheme(isDark() ? 'light' : 'dark'));
   document.body.appendChild(mn);
   setTimeout(() => document.addEventListener('click', function off(e) { if (!mn.contains(e.target)) { mn.remove(); document.removeEventListener('click', off); } }), 0);
 }
