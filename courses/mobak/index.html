@@ -1169,7 +1169,8 @@ def code_check(src, header, footer, code, samples):
         out, err = _run(header, code, footer, inp)
         s, h = _sc(m.check(out, clue))
         if s < 1:
-            r = {"ok": False, "n": i + 1, "total": len(tests), "err": err, "hint": h}
+            # программа упала — причину называет сама ошибка; подсказка по выводу («ничего не вывела», «строк меньше») уводила бы в сторону
+            r = {"ok": False, "n": i + 1, "total": len(tests), "err": err, "hint": "" if err else h}
             if i < samples:
                 r.update({"input": inp, "expected": str(clue), "got": out[:5000]})
             return json.dumps(r)
