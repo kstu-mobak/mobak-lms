@@ -3076,15 +3076,21 @@ function examLive(box, td, g, ex) {
     t.innerHTML = '<tr><th>Студент</th><th>Статус</th><th>Вход</th><th title="Уходил со страницы или из окна браузера">Уходы</th><th title="Выходил из полноэкранного режима">Экран</th><th title="Заблокированные вставки длинного текста извне / короткие вставки">Вставки</th><th>Шагов</th><th>Баллы</th><th></th></tr>' +
       rows.map(r => {
         const st = !r.x.p ? '<span class="badge">не входил на сайт</span>' : !r.a ? '<span class="badge">не вошёл</span>' : r.a.status === 'finished' ? '<span class="badge full">завершил</span>' : '<span class="badge part">пишет</span>';
-        const warn = r.other ? ' <span class="badge late" title="Пытался войти с другого устройства">другое устройство ×' + r.other + '</span>' : '';
+        const warn = (r.other ? ' <span class="badge late" title="Пытался войти с другого устройства">другое устройство ×' + r.other + '</span>' : '') +
+          (ex.require_seb && r.x.p && (ex.seb_exempt || []).includes(r.x.p.user_id) ? ' <span class="badge late" title="В этой контрольной пишет без Safe Exam Browser">без SEB</span>' : '');
         return '<tr data-u="' + esc((r.x.p && r.x.p.user_id) || '') + '"><td>' + esc(r.x.r.full_name) + '</td><td>' + st + warn + '</td><td class="small">' + (r.a ? hhmm(r.a.started_at) + (r.a.seb ? ' · SEB' : '') + (r.a.ip ? ' · ' + esc(r.a.ip) : '') : '') + '</td>' +
           '<td' + (r.awaySec > 60 ? ' class="hot"' : '') + '>' + (r.away ? r.away + ' · ' + Math.round(r.awaySec / 60 * 10) / 10 + ' мин' : '') + '</td><td>' + (r.fsExit || '') + '</td><td' + (r.blocked ? ' class="hot"' : '') + '>' + (r.blocked || r.pastes ? r.blocked + ' / ' + r.pastes : '') + '</td>' +
           '<td>' + (r.solved ? r.solved + ' из ' + steps.length : '') + '</td><td>' + (r.solved ? fmt(r.pts) + ' из ' + maxPts : '') + '</td><td></td></tr>';
       }).join('');
     if (isTeacher()) t.querySelectorAll('tr[data-u]').forEach(tr => {
-      const r = rows.find(z => z.x.p && z.x.p.user_id === tr.dataset.u); if (!r || !r.a) return;
-      const cell = tr.lastElementChild;
-      cell.appendChild(linkBtn('Сбросить вход', () => { if (confirm('Сбросить вход ' + r.x.r.full_name + '? Студент войдёт по коду заново — например, с другого устройства.')) manage('reset_device')({ p_user: r.x.p.user_id }); }));
+      const r = rows.find(z => z.x.p && z.x.p.user_id === tr.dataset.u); if (!r) return;
+      const cell = tr.lastElementChild, uid = r.x.p.user_id;
+      // Linux, Chromebook: SEB для них нет — разрешить этому студенту войти без SEB (только в этой контрольной)
+      if (ex.require_seb && !(r.a && r.a.status === 'finished')) cell.appendChild((ex.seb_exempt || []).includes(uid)
+        ? linkBtn('Только SEB', () => manage('seb_require')({ p_user: uid }))
+        : linkBtn('Без SEB', () => { if (confirm(r.x.r.full_name + ' войдёт в эту контрольную без Safe Exam Browser — из обычного браузера. Без SEB сайт защищён слабее: посадите студента так, чтобы видеть экран. Разрешить?')) manage('seb_exempt')({ p_user: uid }); }));
+      if (!r.a) return;
+      cell.appendChild(linkBtn('Сбросить вход',() => { if (confirm('Сбросить вход ' + r.x.r.full_name + '? Студент войдёт по коду заново — например, с другого устройства.')) manage('reset_device')({ p_user: r.x.p.user_id }); }));
       if (r.a.status === 'finished') cell.appendChild(linkBtn('Вернуть', () => manage('reopen_student')({ p_user: r.x.p.user_id })));
     });
     wrap.innerHTML = ''; wrap.appendChild(t);
